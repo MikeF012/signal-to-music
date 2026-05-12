@@ -249,15 +249,13 @@ export default function TransportBar({
         </button>
       </div>
 
-      <div className="transport-spacer" />
-
-      {/* ── Presets ── */}
-      <button className="hw-btn hw-btn-sm" onClick={onOpenPresets} title="Open preset library">
-        ☰ Presets
-      </button>
-
-      {/* ── Right slot: avatar / sign-in ── */}
-      <div data-tour="avatar">{rightSlot}</div>
+      {/* ── Presets + account — margin-left:auto keeps cluster on the right without overflow ── */}
+      <div className="transport-bar-end">
+        <button className="hw-btn hw-btn-sm" onClick={onOpenPresets} title="Open preset library">
+          ☰ Presets
+        </button>
+        <div className="transport-avatar-slot" data-tour="avatar">{rightSlot}</div>
+      </div>
     </div>
   );
 }

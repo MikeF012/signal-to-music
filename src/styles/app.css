@@ -57,9 +57,18 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+html {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  /* Prevent 100vw scrollbar gutter from causing horizontal scroll */
+}
 
 body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  min-height: 100%;
   font-family: var(--font-body);
   font-size: 13px;
   background: var(--bg-body);
@@ -72,9 +81,18 @@ body {
 .daw {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: 100vh;
-  overflow: hidden;
+  height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: hidden;
   background: var(--bg-body);
+  /* Safe horizontal inset — nothing flush against screen edges */
+  padding-left: max(0px, env(safe-area-inset-left, 0px));
+  padding-right: max(0px, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -175,11 +193,22 @@ body {
 ──────────────────────────────────────────────────────────── */
 .transport-bar {
   flex-shrink: 0;
-  height: var(--transport-h);
+  min-height: var(--transport-h);
+  height: auto;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 14px;
+  flex-wrap: wrap;
+  row-gap: 6px;
+  column-gap: 10px;
+  /* Minimum 16px from viewport edges + notch safe-area */
+  padding-top: 6px;
+  padding-bottom: 6px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   background: linear-gradient(180deg, #1c0e18 0%, #140a12 100%);
   /* Default (80s) — warm amber border + glow */
   border-top:    1px solid rgba(232,160,48,.25);
@@ -188,6 +217,25 @@ body {
     0 0 0 0 transparent,           /* theme inner glow — overridden per decade */
     0 4px 20px rgba(0,0,0,.55),
     inset 0 1px 0 rgba(232,160,48,.08);
+  /* Last resort: horizontal scroll inside bar instead of clipping controls */
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Primary controls grow/shrink; end cluster stays visible at the end of the row */
+.transport-bar-end {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.transport-avatar-slot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 
 /* Dedicated stop button — slightly cooler tone than play */
@@ -223,7 +271,7 @@ body {
   text-align: right;
 }
 
-.transport-btn-group { display: flex; gap: 5px; align-items: center; }
+.transport-btn-group { display: flex; gap: 5px; align-items: center; min-width: 0; flex-shrink: 1; }
 
 .transport-divider {
   width: 1px;
@@ -295,7 +343,10 @@ body {
 .bpm-input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 2px rgba(232,160,48,.2), inset 0 1px 3px rgba(0,0,0,.4); }
 
 .project-name-input {
-  width: 110px;
+  flex: 1 1 100px;
+  width: auto;
+  min-width: 64px;
+  max-width: min(200px, 28vw);
   border: 1px solid var(--border);
   border-radius: 5px;
   padding: 4px 8px;
@@ -307,7 +358,7 @@ body {
 
 .project-name-input:focus { outline: none; border-color: var(--border-hi); }
 
-.transport-spacer { flex: 1; }
+/* Spacer removed — use .transport-bar-end { margin-left: auto } instead */
 
 /* ─────────────────────────────────────────────────────────────
    Signal Panel (below transport, shows selected track params)
@@ -2395,12 +2446,19 @@ body {
 /* ── TRANSPORT BAR — chrome control panel, connects to housing ──────── */
 
 .decade-90s-2000s .transport-bar {
-  /* Flush with the visualizer housing side margins */
+  /* Side inset without breaking 100% width (prevents horizontal overflow) */
   margin: 0 10px 0;
+  width: calc(100% - 20px);
+  max-width: calc(100% - 20px);
+  min-width: 0;
+  box-sizing: border-box;
 
   /* Rounded only at the bottom — forms a unified device body with visualizer */
   border-radius: 0 0 28px 28px / 0 0 24px 24px;
-  padding: 8px 28px 10px;
+  padding-top: 8px;
+  padding-bottom: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
 
   /* Dark interior panel inside a chrome-edged strip:
      top strip = continuation of chrome housing bottom edge
@@ -3177,8 +3235,13 @@ body {
 .decade-2010s .transport-bar {
   background: #222222 !important;
   margin: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
   border-radius: 0 !important;
-  padding: 0 12px !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)) !important;
+  padding-right: max(16px, env(safe-area-inset-right, 0px)) !important;
   border-top:    1px solid #2e2e2e !important;
   border-bottom: 1px solid #111 !important;
   border-left:   none !important;
@@ -4900,6 +4963,23 @@ body {
   .settings-nav { flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--border); padding-right: 0; padding-bottom: 8px; }
   .decade-grid  { grid-template-columns: 1fr; }
   .plans-grid   { grid-template-columns: 1fr; }
+
+  /* Transport: account + presets row uses full width, right-aligned — never clipped */
+  .transport-bar-end {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* 90s chrome bar: drop side margins on narrow screens — full width + same padding as base */
+  .decade-90s-2000s .transport-bar {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
 }
 
 
