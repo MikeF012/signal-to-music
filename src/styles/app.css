@@ -185,6 +185,22 @@ body {
 
 /* Button sizes */
 .hw-btn-icon { width: 36px; height: 36px; font-size: 1rem; border-radius: 7px; }
+.hw-btn-icon .transport-glyph {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.transport-glyph--sm {
+  width: 14px;
+  height: 14px;
+}
+.transport-labelled-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
 .hw-btn-sm   { padding: 5px 10px; font-size: .6rem; }
 .hw-btn-md   { padding: 6px 14px; font-size: .65rem; }
 
@@ -266,6 +282,13 @@ body {
   font-size: 1rem;
   line-height: 1;
   opacity: 0.85;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.appearance-btn-icon.transport-glyph {
+  width: 1rem;
+  height: 1rem;
 }
 
 .appearance-btn-label {
@@ -5160,17 +5183,68 @@ body {
     --sidebar-w:   100%;
   }
 
-  .daw { height: auto; min-height: 100vh; overflow-y: auto; }
-  .daw-main { flex-direction: column; overflow: visible; }
+  /* Scrollable shell on short phones — flex children still get min sizes for timeline */
+  .daw {
+    min-height: 100dvh;
+    min-height: 100svh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
 
-  .track-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
-  .sidebar-tracks { max-height: none; }
+  .daw-main {
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: min(52vh, 420px);
+    overflow: hidden;
+  }
 
-  .timeline-area { display: none; }
+  .track-sidebar {
+    width: 100%;
+    flex-shrink: 0;
+    max-height: min(34vh, 300px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
 
-  .signal-panel { grid-template-columns: 1fr; }
+  .sidebar-tracks {
+    max-height: none;
+  }
+
+  .signal-panel {
+    grid-template-columns: 1fr;
+    flex-shrink: 0;
+    max-height: min(34vh, 340px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .signal-track-ident { display: none; }
   .signal-body { padding: 10px; }
+
+  /* Timeline + lanes — was display:none which hid all track blocks on phones */
+  .timeline-root {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 220px;
+    display: flex !important;
+  }
+
+  .timeline-area {
+    flex: 1;
+    min-height: 0;
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  .lanes-scroll {
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+  }
 
   .transport-time-display { display: none; }
   .project-name-input { display: none; }

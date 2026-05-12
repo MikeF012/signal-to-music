@@ -557,7 +557,7 @@ export default function App() {
         </div>
 
         {/* ── Right: Timeline ── */}
-        <div data-tour="timeline" style={{ flex: 1, display: "flex" }}>
+        <div className="timeline-root" data-tour="timeline" style={{ flex: 1, display: "flex" }}>
           <Timeline
             tracks={compiledTracks}
             bpm={state.bpm}

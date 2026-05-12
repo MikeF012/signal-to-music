@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { TransportPalette } from "./icons/TransportGlyphs";
 
 const THEMES = [
   {
@@ -128,7 +129,7 @@ export default function AppearancePicker({ activeTheme, onThemeChange }) {
           aria-haspopup="dialog"
           onClick={() => setOpen((v) => !v)}
         >
-          <span className="appearance-btn-icon" aria-hidden>🎨</span>
+          <TransportPalette className="appearance-btn-icon transport-glyph" />
           <span className="appearance-btn-label">Appearances</span>
         </button>
       </div>

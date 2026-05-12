@@ -1,5 +1,19 @@
 import React, { useEffect, useRef, useState } from "react";
 import AppearancePicker from "./AppearancePicker";
+import {
+  TransportFolder,
+  TransportHamburger,
+  TransportLoop,
+  TransportMetronome,
+  TransportMic,
+  TransportPause,
+  TransportPlay,
+  TransportRecord,
+  TransportSaveDisk,
+  TransportSkipEnd,
+  TransportSkipStart,
+  TransportStop,
+} from "./icons/TransportGlyphs";
 
 function pad(n, dec = 0) {
   return dec > 0
@@ -75,16 +89,20 @@ export default function TransportBar({
           className="hw-btn hw-btn-icon"
           onClick={onSkipToStart}
           title="Skip to beginning"
+          type="button"
         >
-          ⏮
+          <TransportSkipStart className="transport-glyph" />
         </button>
 
         <button
           className={`hw-btn hw-btn-icon${isPlaying ? " active-mint" : ""}`}
           onClick={onPlay}
           title="Play (Space)"
+          type="button"
         >
-          ▶
+          {isPlaying
+            ? <TransportPause className="transport-glyph" />
+            : <TransportPlay className="transport-glyph" />}
         </button>
 
         {/* Dedicated stop button — square */}
@@ -92,8 +110,9 @@ export default function TransportBar({
           className="hw-btn hw-btn-icon transport-stop-btn"
           onClick={onStop}
           title="Stop (Space)"
+          type="button"
         >
-          ■
+          <TransportStop className="transport-glyph" />
         </button>
 
         <button
@@ -101,6 +120,7 @@ export default function TransportBar({
           onClick={onRecord}
           title={isRecording ? "Stop recording & export WAV" : "Record — plays count-in first"}
           style={{ position: "relative" }}
+          type="button"
         >
           {isRecording && (
             <span
@@ -112,15 +132,16 @@ export default function TransportBar({
               }}
             />
           )}
-          ●
+          <TransportRecord className="transport-glyph" />
         </button>
 
         <button
           className="hw-btn hw-btn-icon"
           onClick={onSkipToEnd}
           title="Skip to end"
+          type="button"
         >
-          ⏭
+          <TransportSkipEnd className="transport-glyph" />
         </button>
       </div>
 
@@ -134,19 +155,23 @@ export default function TransportBar({
       {/* ── Loop + Metronome ── */}
       <div className="transport-btn-group">
         <button
-          className={`hw-btn hw-btn-sm${loopActive ? " active" : ""}`}
+          className={`hw-btn hw-btn-sm transport-labelled-btn${loopActive ? " active" : ""}`}
           onClick={onLoopToggle}
           title={loopActive ? "Loop on — click to disable" : "Loop off — click to enable"}
+          type="button"
         >
-          ↻ Loop
+          <TransportLoop className="transport-glyph transport-glyph--sm" />
+          <span>Loop</span>
         </button>
 
         <button
-          className={`hw-btn hw-btn-sm${metronomActive ? " active" : ""}`}
+          className={`hw-btn hw-btn-sm transport-labelled-btn${metronomActive ? " active" : ""}`}
           onClick={onMetronomToggle}
           title={metronomActive ? "Metronome on" : "Metronome off"}
+          type="button"
         >
-          ♩ Click
+          <TransportMetronome className="transport-glyph transport-glyph--sm" />
+          <span>Click</span>
         </button>
       </div>
 
@@ -230,33 +255,45 @@ export default function TransportBar({
       {/* ── Mic / Open / Save ── */}
       <div className="transport-btn-group">
         <button
-          className="hw-btn hw-btn-sm"
+          className="hw-btn hw-btn-sm transport-labelled-btn"
           onClick={onOpenMic}
           title="Record from microphone — analyzes the math of your sound"
+          type="button"
         >
-          🎙 Mic
+          <TransportMic className="transport-glyph transport-glyph--sm" />
+          <span>Mic</span>
         </button>
         <button
-          className="hw-btn hw-btn-sm"
+          className="hw-btn hw-btn-sm transport-labelled-btn"
           onClick={onOpenProject}
           title="Open a saved .signal project file"
+          type="button"
         >
-          📁 Open
+          <TransportFolder className="transport-glyph transport-glyph--sm" />
+          <span>Open</span>
         </button>
         <button
-          className="hw-btn hw-btn-sm"
+          className="hw-btn hw-btn-sm transport-labelled-btn"
           onClick={onSaveProject}
           title="Save this project as a file or to the cloud"
+          type="button"
         >
-          💾 Save
+          <TransportSaveDisk className="transport-glyph transport-glyph--sm" />
+          <span>Save</span>
         </button>
       </div>
 
       {/* ── Appearances + Presets + account — margin-left:auto keeps cluster on the right ── */}
       <div className="transport-bar-end">
         <AppearancePicker activeTheme={currentDecade} onThemeChange={onDecadeChange} />
-        <button className="hw-btn hw-btn-sm" onClick={onOpenPresets} title="Open preset library">
-          ☰ Presets
+        <button
+          className="hw-btn hw-btn-sm transport-labelled-btn"
+          onClick={onOpenPresets}
+          title="Open preset library"
+          type="button"
+        >
+          <TransportHamburger className="transport-glyph transport-glyph--sm" />
+          <span>Presets</span>
         </button>
         <div className="transport-avatar-slot">{rightSlot}</div>
       </div>
