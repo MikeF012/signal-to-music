@@ -447,6 +447,8 @@ export default function App() {
         onOpenMic={() => setShowMic(true)}
         onOpenProject={pickProjectFile}
         onSaveProject={handleSaveProject}
+        currentDecade={prefs.decadeTheme}
+        onDecadeChange={(id) => setPrefs({ decadeTheme: id })}
         rightSlot={
           authLoading ? null : (
             <AvatarMenu

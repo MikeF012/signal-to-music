@@ -12,7 +12,7 @@ function rowToSong(row) {
     data:      row.data,
     duration:  row.duration ?? 0,
     sizeBytes: row.size_bytes ?? 0,
-    decade:    row.decade ?? "80s",
+    decade:    row.decade ?? "2010s",
     createdAt: row.created_at,
     isCloud:   true,
   };
@@ -72,7 +72,7 @@ export function useCloudSongs(user, isPremium = false) {
         data,
         duration:   duration ?? 0,
         size_bytes: sizeBytes ?? 0,
-        decade:     decade ?? "80s",
+        decade:     decade ?? "2010s",
       })
       .select()
       .single();

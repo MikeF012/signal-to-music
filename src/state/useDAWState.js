@@ -141,7 +141,7 @@ function buildInitialState() {
     loopActive:      false,
     metronomActive:  false,
     projectName:     "untitled",
-    decade:          "80s",
+    decade:          "2010s",
     presets:         [...BUILT_IN_PRESETS, ...readSavedPresets()],
     clipboard:       null,   // { block } — copied block ready to paste
   };

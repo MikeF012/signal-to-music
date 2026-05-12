@@ -10,7 +10,7 @@ export default function PlaybackReviewModal({
   open,
   onClose,
   title,
-  decade = "80s",
+  decade = "2010s",
   audioBlob,           // optional WAV blob to play
   duration = 0,
   user,

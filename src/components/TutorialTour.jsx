@@ -4,13 +4,19 @@ const STEPS = [
   {
     selector: '[data-tour="visualizer"]',
     title:    "Master Visualizer",
-    body:     "All your tracks combined live up here, reacting to the mix in real time.",
+    body:     "All your tracks combined live up here, reacting to the mix in real time. Tip: you can change the entire look of the app anytime with Appearances in the transport bar.",
     place:    "below",
   },
   {
     selector: '[data-tour="transport"]',
     title:    "Transport Bar",
-    body:     "Play, stop, record, scrub, and dial in your tempo and master volume here. The mic icon records audio from your microphone.",
+    body:     "Play, stop, record, BPM, volume, and more. The palette button opens Appearances — switch between 80s, 90s–2000s, and 2010s themes without opening Settings.",
+    place:    "below",
+  },
+  {
+    selector: '[data-tour="appearances"]',
+    title:    "Appearances",
+    body:     "Click here to preview and apply a theme in one tap. Your choice is saved on this device and to the cloud when you’re signed in.",
     place:    "below",
   },
   {
@@ -28,13 +34,13 @@ const STEPS = [
   {
     selector: '[data-tour="timeline"]',
     title:    "Timeline",
-    body:     "Click a lane to drop a signal block. Drag blocks between lanes, or right-click a block to delete it.",
+    body:     "Click a lane to drop a signal block. Drag blocks between lanes, or right-click a block for split, copy, and more.",
     place:    "left",
   },
   {
     selector: '[data-tour="avatar"]',
     title:    "Your Account",
-    body:     "Sign in here to save your songs to the cloud, manage settings, and unlock more decade themes.",
+    body:     "Sign in here to save your songs to the cloud, manage settings, and sync preferences across devices.",
     place:    "below-left",
   },
 ];

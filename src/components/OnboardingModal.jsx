@@ -3,15 +3,15 @@ import Modal from "./Modal";
 import { validateDisplayName } from "../utils/validation";
 
 const DECADES = [
-  { id: "80s",        label: "80s",       blurb: "Cassette deck, neon, warm tape" },
-  { id: "90s-2000s",  label: "90s-2000s", blurb: "iPod mini, click wheel, MP3 era" },
   { id: "2010s",      label: "2010s",     blurb: "Smartphone, streaming, glass UI" },
+  { id: "90s-2000s",  label: "90s-2000s", blurb: "iPod mini, click wheel, MP3 era" },
+  { id: "80s",        label: "80s",       blurb: "Cassette deck, neon, warm tape" },
 ];
 
 export default function OnboardingModal({
   open,
   initialName = "",
-  initialDecade = "80s",
+  initialDecade = "2010s",
   onComplete,
   onSkip,
 }) {

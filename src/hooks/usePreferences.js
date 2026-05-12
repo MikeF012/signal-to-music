@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 const KEY = "signal-prefs-v1";
 
 export const DEFAULT_PREFS = {
-  decadeTheme:         "80s",       // "80s" | "90s-2000s" | "2010s"
+  decadeTheme:         "2010s",     // "80s" | "90s-2000s" | "2010s"
   reduceMotion:        false,
   highContrast:        false,
   largerText:          false,

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import AppearancePicker from "./AppearancePicker";
 
 function pad(n, dec = 0) {
   return dec > 0
@@ -39,6 +40,8 @@ export default function TransportBar({
   onOpenProject,
   onSaveProject,
   rightSlot,           // <AvatarMenu /> renders here
+  currentDecade,       // "80s" | "90s-2000s" | "2010s"
+  onDecadeChange,
 }) {
   const [bpmVal, setBpmVal] = useState(String(bpm));
   const [projVal, setProjVal] = useState(projectName ?? "untitled");
@@ -249,12 +252,13 @@ export default function TransportBar({
         </button>
       </div>
 
-      {/* ── Presets + account — margin-left:auto keeps cluster on the right without overflow ── */}
+      {/* ── Appearances + Presets + account — margin-left:auto keeps cluster on the right ── */}
       <div className="transport-bar-end">
+        <AppearancePicker activeTheme={currentDecade} onThemeChange={onDecadeChange} />
         <button className="hw-btn hw-btn-sm" onClick={onOpenPresets} title="Open preset library">
           ☰ Presets
         </button>
-        <div className="transport-avatar-slot" data-tour="avatar">{rightSlot}</div>
+        <div className="transport-avatar-slot">{rightSlot}</div>
       </div>
     </div>
   );

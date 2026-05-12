@@ -8,7 +8,7 @@ export function projectFromState(state, extras = {}) {
     type:    "signal-project",
     version: PROJECT_FILE_VERSION,
     name:    state.projectName ?? "untitled",
-    decade:  extras.decade ?? "80s",
+    decade:  extras.decade ?? "2010s",
     bpm:     state.bpm,
     masterVolume: state.masterVolume,
     duration: getProjectDuration(state),
