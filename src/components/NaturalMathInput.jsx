@@ -1,6 +1,6 @@
 import React, { useRef, useState } from "react";
 
-export default function NaturalMathInput({ value, onChange, error }) {
+export default function NaturalMathInput({ value, onChange, error, onCommit }) {
   const inputRef = useRef(null);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const closeTimeoutRef = useRef(null);
@@ -72,10 +72,16 @@ export default function NaturalMathInput({ value, onChange, error }) {
         type="text"
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && onCommit) {
+            e.preventDefault();
+            onCommit(e.currentTarget.value);
+          }
+        }}
         onFocus={openKeyboard}
         onBlur={scheduleClose}
         placeholder="sin(t) + 0.5sin(2t)  or  sin(t)e^-4t"
-        title="Custom formula — use t as the variable"
+        title="Custom formula — use t as the variable. Press Enter to apply to the selected track."
       />
 
       {isKeyboardOpen && (

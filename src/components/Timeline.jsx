@@ -1,8 +1,16 @@
 import React, { useEffect, useRef, useCallback } from "react";
 import SignalBlock from "./SignalBlock";
-import { getPlayheadTime } from "../audio/toneEngine";
+import { getPlayheadTime, enginePlaybackActive } from "../audio/toneEngine";
 import { TRACK_HEIGHT, RULER_HEIGHT, TIMELINE_DURATION } from "../utils/ranges";
 
+// True when dragging a wave chip or a library sound onto a lane (dragover only exposes types[], not payloads).
+function laneDnDIndicatesDrop(dt) {
+  if (!dt?.types) return false;
+  const types = Array.from(dt.types);
+  if (types.includes("wave-type")) return true;
+  if (types.includes("application/x-signal-sound")) return true;
+  return false;
+}
 // ── Ruler SVG ─────────────────────────────────────────────────────────────
 
 function Ruler({ bpm, zoom, totalWidth }) {
@@ -69,8 +77,9 @@ export default function Timeline({
   isPlaying,
   currentTime,
   selectedTrackId,
-  selectedBlockId,
+  selectedBlocks,     // [{ trackId, blockId }]
   clipboard,          // { block } | null — for paste
+  onClearBlockSelection,
   onSelectTrack,
   onAddBlock,
   onMoveBlock,
@@ -85,6 +94,7 @@ export default function Timeline({
   onSeek,
   onUpdateTrack,
   sidebarScrollRef,
+  onDropCustomSound,
 }) {
   const lanesRef    = useRef(null);
   const rulerRef    = useRef(null);
@@ -94,6 +104,16 @@ export default function Timeline({
   // Lane right-click paste menu
   const [laneMenu, setLaneMenu] = React.useState(null); // { x, y, trackId, time }
   const laneMenuRef = useRef(null);
+
+  const selectionKeys = React.useMemo(() => {
+    const s = new Set();
+    if (Array.isArray(selectedBlocks)) {
+      for (const k of selectedBlocks) {
+        s.add(`${k.trackId}:${k.blockId}`);
+      }
+    }
+    return s;
+  }, [selectedBlocks]);
 
   React.useEffect(() => {
     if (!laneMenu) return;
@@ -145,37 +165,42 @@ export default function Timeline({
     const ph = playheadRef.current;
     if (!ph) return;
 
-    if (!isPlaying) {
-      ph.style.left = `${currentTime * zoom}px`;
-      return;
-    }
-
     let rafId;
-    function tick() {
-      const t = getPlayheadTime();
-      ph.style.left = `${t * zoom}px`;
 
-      const lanes = lanesRef.current;
-      if (lanes) {
-        const px = t * zoom;
-        const sl = lanes.scrollLeft;
-        const cw = lanes.clientWidth;
-        if (px > sl + cw * 0.82) lanes.scrollLeft = px - cw * 0.18;
+    function tick() {
+      if (enginePlaybackActive()) {
+        const t = getPlayheadTime();
+        ph.style.left = `${t * zoom}px`;
+        const lanes = lanesRef.current;
+        if (lanes) {
+          const px = t * zoom;
+          const sl = lanes.scrollLeft;
+          const cw = lanes.clientWidth;
+          if (px > sl + cw * 0.82) lanes.scrollLeft = px - cw * 0.18;
+        }
+      } else {
+        ph.style.left = `${currentTime * zoom}px`;
       }
 
-      rafId = requestAnimationFrame(tick);
+      if (enginePlaybackActive() || isPlaying) {
+        rafId = requestAnimationFrame(tick);
+      }
     }
-    rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
+
+    tick();
+
+    return () => { if (rafId != null) cancelAnimationFrame(rafId); };
   }, [isPlaying, zoom, currentTime]);
 
   useEffect(() => {
-    if (!isPlaying && playheadRef.current)
+    if (!isPlaying && !enginePlaybackActive() && playheadRef.current) {
       playheadRef.current.style.left = `${currentTime * zoom}px`;
+    }
   }, [currentTime, zoom, isPlaying]);
 
   // ── Ruler click → seek ───────────────────────────────────────────────
   function handleRulerPointerDown(e) {
+    onClearBlockSelection?.();
     const rect = rulerRef.current.getBoundingClientRect();
     const sl   = lanesRef.current?.scrollLeft ?? 0;
     const x    = e.clientX - rect.left + sl;
@@ -201,14 +226,15 @@ export default function Timeline({
 
   function handlePlayheadPointerUp() { phDrag.current = null; }
 
-  // ── Lane left-click → select + add block ────────────────────────────
+  // ── Lane left-click → select track & seek playhead (no implicit new blocks)
   function handleLaneClick(e, trackId) {
-    onSelectTrack(trackId);
     if (e.target.closest(".signal-block")) return;
+    onClearBlockSelection?.();
+    onSelectTrack(trackId);
     const lanesEl = lanesRef.current;
     const rect    = lanesEl.getBoundingClientRect();
     const x       = e.clientX - rect.left + lanesEl.scrollLeft;
-    onAddBlock(trackId, x / zoom);
+    onSeek(Math.max(0, x / zoom));
   }
 
   // ── Lane right-click → paste menu (if clipboard) ─────────────────────
@@ -224,13 +250,13 @@ export default function Timeline({
 
   // ── Wave-type drag-and-drop onto lanes ───────────────────────────────
   function handleLaneDragOver(e) {
-    if (!e.dataTransfer.types.includes("wave-type")) return;
+    if (!laneDnDIndicatesDrop(e.dataTransfer)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
   }
 
   function handleLaneDragEnter(e) {
-    if (!e.dataTransfer.types.includes("wave-type")) return;
+    if (!laneDnDIndicatesDrop(e.dataTransfer)) return;
     e.currentTarget.classList.add("drop-target");
   }
 
@@ -241,17 +267,45 @@ export default function Timeline({
     }
   }
 
+  function laneDropSoundId(dt) {
+    let id = dt.getData("application/x-signal-sound").trim();
+    if (!id) {
+      const plain = dt.getData("text/plain");
+      if (plain?.startsWith("signal-sound:")) id = plain.slice("signal-sound:".length).trim();
+    }
+    return id || "";
+  }
+
   function handleLaneDrop(e, trackId) {
     e.currentTarget.classList.remove("drop-target");
-    const waveType = e.dataTransfer.getData("wave-type");
-    if (!waveType) return;
-    e.preventDefault();
+    const soundId = laneDropSoundId(e.dataTransfer);
+
     const lanesEl = lanesRef.current;
     const rect    = lanesEl.getBoundingClientRect();
     const x       = e.clientX - rect.left + lanesEl.scrollLeft;
+    const dropTime = x / zoom;
+
+    if (soundId) {
+      e.preventDefault();
+      onClearBlockSelection?.();
+      onSelectTrack(trackId);
+      onDropCustomSound?.(trackId, soundId, dropTime);
+      return;
+    }
+
+    const waveType = e.dataTransfer.getData("wave-type");
+    if (!waveType) return;
+    e.preventDefault();
+    onClearBlockSelection?.();
+
+    const customFormula = e.dataTransfer.getData("custom-formula");
     onSelectTrack(trackId);
-    onAddBlock(trackId, x / zoom);
-    onUpdateTrack?.(trackId, { waveform: waveType });
+    onAddBlock(trackId, dropTime);
+    const formulaPatch =
+      waveType === "custom" && customFormula
+        ? { waveform: waveType, customFormula: customFormula }
+        : { waveform: waveType };
+    onUpdateTrack?.(trackId, formulaPatch);
   }
 
   // ── Cross-track drag (global pointermove / pointerup) ────────────────
@@ -365,8 +419,8 @@ export default function Timeline({
                   block={block}
                   track={track}
                   zoom={zoom}
-                  isSelected={block.id === selectedBlockId}
-                  onSelect={() => onSelectBlock?.(track.id, block.id)}
+                  isSelected={selectionKeys.has(`${track.id}:${block.id}`)}
+                  onSelect={(shift) => onSelectBlock?.(track.id, block.id, shift)}
                   onMove={(bid, t)  => onMoveBlock(track.id, bid, t)}
                   onResize={(bid, d) => onResizeBlock(track.id, bid, d)}
                   onDelete={(bid)    => onDeleteBlock(track.id, bid)}

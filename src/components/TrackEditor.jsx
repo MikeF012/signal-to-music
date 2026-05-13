@@ -5,6 +5,8 @@ import { PARAM_RANGES } from "../utils/ranges";
 
 const WAVEFORMS = ["sine", "cosine", "square", "custom"];
 
+const FIRST_DRAG_HINT_KEY = "signal-drag-to-timeline-hint-dismissed";
+
 const FORMULA_EXAMPLES = [
   { expr: "sin(t)",              desc: "pure sine" },
   { expr: "cos(2*t)",            desc: "cosine, 2× freq" },
@@ -16,6 +18,19 @@ const FORMULA_EXAMPLES = [
 
 export default function TrackEditor({ track, onUpdate }) {
   const [showRef, setShowRef] = useState(false);
+  const [showDragHintBanner, setShowDragHintBanner] = useState(() => {
+    if (typeof localStorage === "undefined") return false;
+    try {
+      return localStorage.getItem(FIRST_DRAG_HINT_KEY) !== "1";
+    } catch {
+      return false;
+    }
+  });
+
+  function dismissDragHintBanner() {
+    try { localStorage.setItem(FIRST_DRAG_HINT_KEY, "1"); } catch {}
+    setShowDragHintBanner(false);
+  }
 
   // Local editable state for LED inputs
   const [freqVal,  setFreqVal]  = useState("");
@@ -53,7 +68,7 @@ export default function TrackEditor({ track, onUpdate }) {
     return (
       <div className="signal-panel">
         <div className="signal-empty">
-          Click a track, or drag a wave type ↓ onto a track lane to place a block
+          Select a track, then drag a wave chip onto a timeline lane to add a generated block there.
         </div>
       </div>
     );
@@ -87,11 +102,23 @@ export default function TrackEditor({ track, onUpdate }) {
 
   function handleWaveDragStart(e, waveType) {
     e.dataTransfer.setData("wave-type", waveType);
+    if (waveType === "custom") {
+      e.dataTransfer.setData("custom-formula", track.customFormula ?? "sin(t)");
+    }
     e.dataTransfer.effectAllowed = "copy";
   }
 
   return (
     <div className="signal-panel">
+      {showDragHintBanner && (
+        <div className="signal-drag-hint-first" role="note">
+          <span className="signal-drag-hint-first-icon" aria-hidden>⇄</span>
+          <span className="signal-drag-hint-first-text">
+            Drag to timeline — grab a Wave chip below and drop it on a lane to place a signal block.
+          </span>
+          <button type="button" className="signal-drag-hint-first-dismiss" onClick={dismissDragHintBanner} aria-label="Dismiss hint">×</button>
+        </div>
+      )}
       {/* ── Left: track identity ── */}
       <div className="signal-track-ident">
         <div
@@ -129,6 +156,11 @@ export default function TrackEditor({ track, onUpdate }) {
                 value={track.customFormula}
                 onChange={(v) => set("customFormula", v)}
                 error={track.waveform === "custom" ? (track.formulaError ?? "") : ""}
+                onCommit={(raw) => {
+                  const trimmed = raw.trim();
+                  const formula = trimmed.length ? trimmed : "sin(t)";
+                  onUpdate(track.id, { customFormula: formula, waveform: "custom" });
+                }}
               />
               {showRef && (
                 <div className="formula-ref-popup">
@@ -250,7 +282,7 @@ export default function TrackEditor({ track, onUpdate }) {
                 </button>
               ))}
             </div>
-            <span className="signal-drag-hint">drag ↓ to place</span>
+            <span className="signal-drag-hint-muted">drag a chip to a lane</span>
           </div>
         </div>
 

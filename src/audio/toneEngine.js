@@ -31,9 +31,27 @@ let metronomInterval  = null;
 
 export function getAnalyser() { return analyserNode; }
 
+/** True while the script processor is actively advancing the playhead. */
+export function enginePlaybackActive() {
+  return playing && !!audioCtx;
+}
+
 export function getPlayheadTime() {
   if (!audioCtx || !playing) return playStartOffset;
   return playStartOffset + (audioCtx.currentTime - playStartClock);
+}
+
+function connectGraph() {
+  if (!audioCtx || !scriptNode || !masterGainNode || !analyserNode) return;
+  try {
+    scriptNode.disconnect();
+    masterGainNode.disconnect();
+    analyserNode.disconnect();
+  } catch { /* first connect */ }
+
+  scriptNode.connect(masterGainNode);
+  masterGainNode.connect(audioCtx.destination);
+  masterGainNode.connect(analyserNode);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -48,7 +66,7 @@ export async function initAudio() {
 
   analyserNode = audioCtx.createAnalyser();
   analyserNode.fftSize = 2048;
-  analyserNode.smoothingTimeConstant = 0.75;
+  analyserNode.smoothingTimeConstant = 0.25;
 
   masterGainNode = audioCtx.createGain();
   masterGainNode.gain.value = engineMasterVolume;
@@ -56,9 +74,7 @@ export async function initAudio() {
   scriptNode = audioCtx.createScriptProcessor(2048, 0, 1);
   scriptNode.onaudioprocess = onProcess;
 
-  scriptNode.connect(analyserNode);
-  analyserNode.connect(masterGainNode);
-  masterGainNode.connect(audioCtx.destination);
+  connectGraph();
 }
 
 // ── Audio processing ──────────────────────────────────────────────────────
@@ -93,11 +109,16 @@ function onProcess(e) {
         if (absTime >= block.startTime && absTime < blockEnd) {
           const localTime = absTime - block.startTime;
 
-          // Sampled buffer playback (mic / custom sounds)
-          if (track.recordedSamples && track.recordedSampleRate) {
-            const idx = Math.floor(localTime * track.recordedSampleRate);
-            if (idx < track.recordedSamples.length) {
-              mix += track.recordedSamples[idx] * track.amplitude * track.volume;
+          const clipSamples = block.recordedSamples?.length ? block.recordedSamples : null;
+          const clipRate    = clipSamples ? (block.recordedSampleRate ?? 44100) : null;
+          // Per-clip PCM, else legacy whole-track buffer (one shared recording for every block).
+          const pcm    = clipSamples ?? (track.recordedSamples?.length ? track.recordedSamples : null);
+          const pcmSr  = clipRate ?? (pcm ? (track.recordedSampleRate ?? 44100) : null);
+
+          if (pcm?.length && pcmSr) {
+            const idx = Math.floor(localTime * pcmSr);
+            if (idx < pcm.length && idx >= 0) {
+              mix += pcm[idx] * track.amplitude * track.volume;
             }
           } else {
             const angle = 2 * Math.PI * track.frequency * localTime + track.phase;
@@ -264,7 +285,7 @@ export function disposeAudio() {
 
 // ── WAV encoding ──────────────────────────────────────────────────────────
 
-function encodeWav(samples, sampleRate) {
+export function encodeWav(samples, sampleRate) {
   const len  = samples.length;
   const buf  = new ArrayBuffer(44 + len * 2);
   const view = new DataView(buf);
@@ -290,4 +311,10 @@ function encodeWav(samples, sampleRate) {
   }
 
   return new Blob([buf], { type: "audio/wav" });
+}
+
+/** Float PCM → WAV Blob (for previews / `<audio>`). */
+export function float32SamplesToWavBlob(samples, sampleRate) {
+  const arr = samples instanceof Float32Array ? samples : Float32Array.from(samples);
+  return encodeWav(arr, sampleRate);
 }

@@ -15,7 +15,7 @@ export function projectFromState(state, extras = {}) {
     createdAt: new Date().toISOString(),
     tracks: state.tracks.map((t) => ({
       ...t,
-      blocks: t.blocks.map((b) => ({ ...b })),
+      blocks: t.blocks.map(({ recordedSamples, recordedSampleRate, ...rest }) => rest),
       // Note: recordedSamples are dropped — too large for JSON. Custom-sound
       // blocks reference a sound id that lives in customSounds.
       recordedSamples:    undefined,

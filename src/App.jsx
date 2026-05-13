@@ -1,4 +1,5 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useDAWState }       from "./state/useDAWState";
 import { useAuth }           from "./hooks/useAuth";
 import { useCloudPresets }   from "./hooks/useCloudPresets";
@@ -28,6 +29,8 @@ import Timeline          from "./components/Timeline";
 import TrackEditor       from "./components/TrackEditor";
 import AvatarMenu        from "./components/AvatarMenu";
 import OfflineBadge      from "./components/OfflineBadge";
+import PortraitGate      from "./components/PortraitGate";
+import BlockSelectionHint from "./components/BlockSelectionHint";
 
 // ── Modals and panels — lazy loaded so they don't bloat the initial bundle ─
 const AuthModal           = React.lazy(() => import("./components/AuthModal"));
@@ -38,7 +41,7 @@ const OnboardingModal     = React.lazy(() => import("./components/OnboardingModa
 const MicRecorderModal    = React.lazy(() => import("./components/MicRecorderModal"));
 const PlaybackReviewModal = React.lazy(() => import("./components/PlaybackReviewModal"));
 const CustomSoundsPanel   = React.lazy(() => import("./components/CustomSoundsPanel"));
-const TutorialTour        = React.lazy(() => import("./components/TutorialTour"));
+const TutorialTour           = React.lazy(() => import("./components/TutorialTour"));
 
 import { MAX_TRACKS }    from "./utils/ranges";
 import "./styles/app.css";
@@ -74,8 +77,11 @@ export default function App() {
   const [analyser,        setAnalyser]        = useState(null);
   const [countIn,         setCountIn]         = useState(null);
   const [recordedReview,  setRecordedReview]  = useState(null); // { blob, duration }
+  const [micTrackCue,     setMicTrackCue]      = useState(false);
+  const [tourVariant,     setTourVariant]      = useState("choose"); // choose | quick | full
 
   const sidebarScrollRef = useRef(null);
+  const cueClearTimer     = useRef(null);
   const countInTimer     = useRef(null);
   const fileInputRef     = useRef(null);
 
@@ -92,6 +98,17 @@ export default function App() {
   );
 
   const selectedTrack = compiledTracks.find((t) => t.id === state.selectedTrackId) ?? null;
+
+  function flashTrackSidebarCue() {
+    setMicTrackCue(true);
+    if (cueClearTimer.current) window.clearTimeout(cueClearTimer.current);
+    cueClearTimer.current = window.setTimeout(() => setMicTrackCue(false), 5500);
+  }
+  useEffect(() => () => window.clearTimeout(cueClearTimer.current), []);
+
+  useEffect(() => {
+    if (state.selectedTrackId) setMicTrackCue(false);
+  }, [state.selectedTrackId]);
 
   // ── Push to engine + sync decade theme on load ──────────────────────
   useEffect(() => {
@@ -123,10 +140,33 @@ export default function App() {
   // ── First-run tutorial ───────────────────────────────────────────────
   useEffect(() => {
     if (prefs.showTutorial) {
-      const t = setTimeout(() => setShowTour(true), 600);
+      const t = setTimeout(() => {
+        setTourVariant("choose");
+        setShowTour(true);
+      }, 600);
       return () => clearTimeout(t);
     }
   }, [prefs.showTutorial]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function warmup() {
+      await initAudio();
+      if (!cancelled) setAnalyser(getAnalyser());
+    }
+    function onOnce() {
+      warmup();
+      window.removeEventListener("pointerdown", onOnce);
+      window.removeEventListener("keydown", onOnce);
+    }
+    window.addEventListener("pointerdown", onOnce, { passive: true });
+    window.addEventListener("keydown", onOnce);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pointerdown", onOnce);
+      window.removeEventListener("keydown", onOnce);
+    };
+  }, []);
 
   // ── First-time onboarding for newly-logged-in users ─────────────────
   useEffect(() => {
@@ -163,6 +203,18 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [state.isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    function onKey(e) {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      if (!state.selectedBlocks?.length) return;
+      e.preventDefault();
+      actions.deleteSelectedBlocks();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [state.selectedBlocks, actions]);
+
   // ──────────────────────────────────────────────────────────────────────
   // Transport
   // ──────────────────────────────────────────────────────────────────────
@@ -171,7 +223,9 @@ export default function App() {
     await initAudio();
     setAnalyser(getAnalyser());
     startPlayback(state.currentTime);
-    actions.setIsPlaying(true);
+    flushSync(() => {
+      actions.setIsPlaying(true);
+    });
     if (state.metronomActive) setMetronome(true, state.bpm);
   }
 
@@ -266,24 +320,49 @@ export default function App() {
   function pickProjectFile() { fileInputRef.current?.click(); }
 
   // ──────────────────────────────────────────────────────────────────────
-  // Mic recording → custom sound flow
+  // Recorded PCM → clips on tracks (never auto-new-track)
   // ──────────────────────────────────────────────────────────────────────
 
-  function handleMicAddToTimeline(sound) {
-    actions.addCustomSoundTrack(sound, state.currentTime);
+  function handleRecordedClipOnTrack(trackId, sound, atTime) {
+    if (!trackId || !sound?.samples?.length) return;
+    try {
+      const samplesF32 = sound.samples instanceof Float32Array
+        ? sound.samples
+        : Float32Array.from(sound.samples);
+      actions.addRecordedBlockToTrack(
+        trackId,
+        { ...sound, samples: samplesF32 },
+        Math.max(
+          0,
+          typeof atTime === "number" && Number.isFinite(atTime) ? atTime : (state.currentTime ?? 0)
+        )
+      );
+    } catch (err) {
+      console.error("[Signal] Failed to place recorded clip", err);
+    }
+  }
+
+  function handleAddLibrarySoundClick(sound) {
+    if (!state.selectedTrackId) {
+      flashTrackSidebarCue();
+      return;
+    }
+    handleRecordedClipOnTrack(state.selectedTrackId, sound, state.currentTime);
+  }
+
+  function handleDropLibrarySoundOnTimeline(trackId, soundId, dropTime) {
+    const s = customSoundsLib.sounds.find((x) => x.id === soundId);
+    if (!s) return;
+    handleRecordedClipOnTrack(trackId, s, dropTime);
   }
 
   function handleMicSaveCustom(sound) {
     customSoundsLib.save(sound);
   }
 
-  function handleAddCustomSound(sound) {
-    const samplesF32 = sound.samples instanceof Float32Array
-      ? sound.samples
-      : Float32Array.from(sound.samples);
-    actions.addCustomSoundTrack({ ...sound, samples: samplesF32 }, state.currentTime);
+  function handleMicAddRecordedClip(sound, playheadTime) {
+    handleRecordedClipOnTrack(state.selectedTrackId, sound, playheadTime);
   }
-
   // ──────────────────────────────────────────────────────────────────────
   // Recorded WAV review → save to device or cloud
   // ──────────────────────────────────────────────────────────────────────
@@ -400,7 +479,7 @@ export default function App() {
   // ──────────────────────────────────────────────────────────────────────
 
   return (
-    <div className={`daw decade-${prefs.decadeTheme}`} data-decade={prefs.decadeTheme}>
+    <div className={`daw decade-${prefs.decadeTheme} daw-shell`} data-decade={prefs.decadeTheme}>
       {/* Hidden file input for Open Project */}
       <input
         ref={fileInputRef}
@@ -414,6 +493,7 @@ export default function App() {
       />
 
       <OfflineBadge online={online} supabaseEnabled={supabaseEnabled} />
+      <PortraitGate decade={prefs.decadeTheme} />
 
       {/* ── Master Visualizer ── */}
       <div className="visualizer-wrap" data-tour="visualizer">
@@ -474,7 +554,12 @@ export default function App() {
 
       {/* ── Main: sidebar + timeline ── */}
       <div className="daw-main daw-tracks-area">
-        <div className="track-sidebar" data-tour="sidebar">
+        <div className={`track-sidebar${micTrackCue ? " needs-track-attention" : ""}`} data-tour="sidebar">
+          {micTrackCue && (
+            <div className="track-select-tooltip" role="status">
+              Select a track first
+            </div>
+          )}
           <div className="sidebar-ruler-placeholder">
             <button
               className="sidebar-add-btn"
@@ -549,7 +634,7 @@ export default function App() {
           <Suspense fallback={null}>
             <CustomSoundsPanel
               sounds={customSoundsLib.sounds}
-              onAdd={handleAddCustomSound}
+              onAdd={handleAddLibrarySoundClick}
               onRemove={customSoundsLib.remove}
               onRename={customSoundsLib.rename}
             />
@@ -557,7 +642,8 @@ export default function App() {
         </div>
 
         {/* ── Right: Timeline ── */}
-        <div className="timeline-root" data-tour="timeline" style={{ flex: 1, display: "flex" }}>
+        <div className="timeline-root" data-tour="timeline" style={{ flex: 1, display: "flex", position: "relative" }}>
+          <BlockSelectionHint />
           <Timeline
             tracks={compiledTracks}
             bpm={state.bpm}
@@ -565,7 +651,8 @@ export default function App() {
             isPlaying={state.isPlaying}
             currentTime={state.currentTime}
             selectedTrackId={state.selectedTrackId}
-            selectedBlockId={state.selectedBlockId}
+            selectedBlocks={state.selectedBlocks}
+            onClearBlockSelection={actions.clearBlockSelection}
             onSelectTrack={actions.selectTrack}
             onAddBlock={actions.addBlock}
             onMoveBlock={actions.moveBlock}
@@ -581,6 +668,7 @@ export default function App() {
             onSeek={handleSeek}
             onUpdateTrack={actions.updateTrack}
             sidebarScrollRef={sidebarScrollRef}
+            onDropCustomSound={handleDropLibrarySoundOnTimeline}
           />
         </div>
       </div>
@@ -631,7 +719,16 @@ export default function App() {
             cloudTotalDuration={cloudTotalDuration}
             cloudSyncing={songsSyncing}
             onClearLocalCache={clearLocalCache}
-            onReplayTutorial={() => { setShowSettings(false); setShowTour(true); }}
+            onReplayTutorialQuick={() => {
+              setShowSettings(false);
+              setTourVariant("quick");
+              setShowTour(true);
+            }}
+            onReplayTutorialFull={() => {
+              setShowSettings(false);
+              setTourVariant("full");
+              setShowTour(true);
+            }}
           />
         )}
       </Suspense>
@@ -661,9 +758,13 @@ export default function App() {
         {showMic && (
           <MicRecorderModal
             open
+            themeDecade={prefs.decadeTheme}
+            selectedTrackId={state.selectedTrackId}
+            currentTime={state.currentTime}
             onClose={() => setShowMic(false)}
-            onAdd={handleMicAddToTimeline}
             onSaveCustom={handleMicSaveCustom}
+            onNeedSelectTrack={flashTrackSidebarCue}
+            onAddRecordedToTimeline={handleMicAddRecordedClip}
           />
         )}
       </Suspense>
@@ -719,7 +820,12 @@ export default function App() {
         {showTour && (
           <TutorialTour
             open
-            onClose={() => { setShowTour(false); setPrefs({ showTutorial: false }); }}
+            variant={tourVariant}
+            onClose={() => {
+              setShowTour(false);
+              setTourVariant("choose");
+              setPrefs({ showTutorial: false });
+            }}
           />
         )}
       </Suspense>

@@ -33,7 +33,8 @@ export default function SettingsModal({
   cloudTotalDuration = 0,
   cloudSyncing = false,
   onClearLocalCache,
-  onReplayTutorial,       // () => void
+  onReplayTutorialQuick,
+  onReplayTutorialFull,
 }) {
   const [section, setSection] = useState("account");
   const [busy,    setBusy]    = useState(false);
@@ -228,8 +229,21 @@ export default function SettingsModal({
               />
 
               <h4 className="settings-subsection">Tutorial</h4>
-              <button className="hw-btn hw-btn-md" onClick={onReplayTutorial}>
-                Replay first-run tour
+              <p className="settings-fine">Replay either walkthrough anytime.</p>
+              <button
+                type="button"
+                className="hw-btn hw-btn-md"
+                onClick={onReplayTutorialQuick}
+              >
+                Quick Start (~2 min)
+              </button>
+              <button
+                type="button"
+                className="hw-btn hw-btn-md active"
+                onClick={onReplayTutorialFull}
+                style={{ marginLeft: "8px" }}
+              >
+                Full Tour
               </button>
             </>
           )}

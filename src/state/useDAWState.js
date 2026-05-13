@@ -90,12 +90,35 @@ function writeSavedPresets(presets) {
   localStorage.setItem(PRESET_KEY, JSON.stringify(userOnly));
 }
 
+function blockKey(trackId, blockId) {
+  return `${trackId}:${blockId}`;
+}
+
+function uniqSelectedBlocks(entries) {
+  const seen = new Set();
+  const out  = [];
+  for (const e of entries) {
+    const id = blockKey(e.trackId, e.blockId);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ trackId: e.trackId, blockId: e.blockId });
+  }
+  return out;
+}
+
 function normalizeBlock(b) {
-  return {
+  const out = {
     id:        b.id        ?? `b-n-${Math.random().toString(36).slice(2, 8)}`,
     startTime: Number(b.startTime ?? 0),
     duration:  Math.max(0.01, Number(b.duration ?? 4)),
   };
+  if (b.recordedSamples != null && b.recordedSampleRate && (b.recordedSamples.length ?? 0) > 0) {
+    out.recordedSampleRate = Number(b.recordedSampleRate);
+    out.recordedSamples = b.recordedSamples instanceof Float32Array
+      ? b.recordedSamples
+      : Float32Array.from(b.recordedSamples);
+  }
+  return out;
 }
 
 function normalizeTrack(t, index) {
@@ -131,7 +154,7 @@ function buildInitialState() {
   return {
     tracks,
     selectedTrackId: tracks[0].id,
-    selectedBlockId: null,
+    selectedBlocks: [],   // [{ trackId, blockId }]
     bpm:             120,
     masterVolume:    0.8,
     isPlaying:       false,
@@ -179,7 +202,7 @@ export function useDAWState() {
   }
 
   function selectTrack(trackId) {
-    setState(prev => ({ ...prev, selectedTrackId: trackId, selectedBlockId: null }));
+    setState(prev => ({ ...prev, selectedTrackId: trackId, selectedBlocks: [] }));
   }
 
   function duplicateTrack(trackId) {
@@ -191,9 +214,10 @@ export function useDAWState() {
         ...src,
         id: `t-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: `${src.name} copy`,
-        blocks: src.blocks.map(b => ({
+        blocks: src.blocks.map((b, i) => ({
           ...b,
-          id: `b-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          id: `b-dup-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+          recordedSamples: b.recordedSamples?.length ? Float32Array.from(b.recordedSamples) : undefined,
         })),
       };
       return { ...prev, tracks: [...prev.tracks, dup], selectedTrackId: dup.id };
@@ -234,9 +258,15 @@ export function useDAWState() {
       const block = src.blocks.find(b => b.id === blockId);
       if (!block) return prev;
       const updatedBlock = { ...block, startTime: Math.max(0, newStartTime) };
+      const nextSel = prev.selectedBlocks.map((k) =>
+        k.trackId === sourceTrackId && k.blockId === blockId
+          ? { trackId: targetTrackId, blockId }
+          : k
+      );
       return {
         ...prev,
         selectedTrackId: targetTrackId,
+        selectedBlocks: nextSel,
         tracks: prev.tracks.map(t => {
           if (t.id === sourceTrackId) return { ...t, blocks: t.blocks.filter(b => b.id !== blockId) };
           if (t.id === targetTrackId) return { ...t, blocks: [...t.blocks, updatedBlock] };
@@ -262,20 +292,46 @@ export function useDAWState() {
   function splitBlock(trackId, blockId, splitTime) {
     setState(prev => ({
       ...prev,
+      selectedBlocks: prev.selectedBlocks.filter(
+        k => !(k.trackId === trackId && k.blockId === blockId)
+      ),
       tracks: prev.tracks.map(t => {
         if (t.id !== trackId) return t;
         const block = t.blocks.find(b => b.id === blockId);
         if (!block) return t;
         // Clamp split to at least 0.01s from each end
         const clampedSplit = Math.max(block.startTime + 0.01,
-                             Math.min(block.startTime + block.duration - 0.01, splitTime));
-        const blockA = { ...block, duration: clampedSplit - block.startTime };
-        const blockB = {
+          Math.min(block.startTime + block.duration - 0.01, splitTime));
+        const durA = clampedSplit - block.startTime;
+        const durB = (block.startTime + block.duration) - clampedSplit;
+
+        let blockA = { ...block, duration: durA };
+        let blockB = {
           ...block,
           id: `b-split-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           startTime: clampedSplit,
-          duration:  (block.startTime + block.duration) - clampedSplit,
+          duration: durB,
         };
+
+        if (block.recordedSamples?.length && block.recordedSampleRate) {
+          const sr  = block.recordedSampleRate;
+          const buf = block.recordedSamples;
+          const nSplit = Math.max(1, Math.min(buf.length - 1, Math.round((durA / block.duration) * buf.length)));
+          blockA = {
+            ...blockA,
+            recordedSamples: Float32Array.from(buf.subarray(0, nSplit)),
+            recordedSampleRate: sr,
+            duration: Math.max(0.01, nSplit / sr),
+          };
+          const rest = buf.subarray(nSplit);
+          blockB = {
+            ...blockB,
+            recordedSamples: Float32Array.from(rest),
+            recordedSampleRate: sr,
+            duration: Math.max(0.01, rest.length / sr),
+          };
+        }
+
         return { ...t, blocks: t.blocks.filter(b => b.id !== blockId).concat([blockA, blockB]) };
       }),
     }));
@@ -298,6 +354,7 @@ export function useDAWState() {
         ...src,
         id: `b-paste-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         startTime: Math.max(0, startTime),
+        recordedSamples: src.recordedSamples?.length ? Float32Array.from(src.recordedSamples) : undefined,
       };
       return {
         ...prev,
@@ -311,12 +368,28 @@ export function useDAWState() {
   function deleteBlock(trackId, blockId) {
     setState(prev => ({
       ...prev,
+      selectedBlocks: prev.selectedBlocks.filter(
+        k => !(k.trackId === trackId && k.blockId === blockId)
+      ),
       tracks: prev.tracks.map(t =>
         t.id === trackId
           ? { ...t, blocks: t.blocks.filter(b => b.id !== blockId) }
           : t
       ),
     }));
+  }
+
+  function deleteSelectedBlocks() {
+    setState(prev => {
+      if (!prev.selectedBlocks.length) return prev;
+      let tracks = prev.tracks;
+      for (const { trackId, blockId } of prev.selectedBlocks) {
+        tracks = tracks.map(t =>
+          t.id === trackId ? { ...t, blocks: t.blocks.filter(b => b.id !== blockId) } : t
+        );
+      }
+      return { ...prev, tracks, selectedBlocks: [] };
+    });
   }
 
   function duplicateBlock(trackId, blockId) {
@@ -330,18 +403,45 @@ export function useDAWState() {
           ...block,
           id: `b-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           startTime: block.startTime + block.duration + 0.1,
+          recordedSamples: block.recordedSamples?.length
+            ? Float32Array.from(block.recordedSamples)
+            : undefined,
         };
         return { ...t, blocks: [...t.blocks, dup] };
       }),
     }));
   }
 
-  function selectBlock(trackId, blockId) {
-    setState(prev => ({
-      ...prev,
-      selectedTrackId: trackId,
-      selectedBlockId: blockId,
-    }));
+  function selectBlock(trackId, blockId, additive = false) {
+    setState(prev => {
+      const next = additive ? [...prev.selectedBlocks] : [];
+      const k    = { trackId, blockId };
+      const id   = blockKey(trackId, blockId);
+
+      if (additive) {
+        const had = prev.selectedBlocks.some(x => blockKey(x.trackId, x.blockId) === id);
+        if (had) {
+          return {
+            ...prev,
+            selectedTrackId: trackId,
+            selectedBlocks: prev.selectedBlocks.filter(
+              x => blockKey(x.trackId, x.blockId) !== id
+            ),
+          };
+        }
+        next.push(k);
+      } else next.push(k);
+
+      return {
+        ...prev,
+        selectedTrackId: trackId,
+        selectedBlocks: uniqSelectedBlocks(next),
+      };
+    });
+  }
+
+  function clearBlockSelection() {
+    setState(prev => ({ ...prev, selectedBlocks: [] }));
   }
 
   // ── Playback ─────────────────────────────────────────────────────────────
@@ -360,45 +460,60 @@ export function useDAWState() {
   function setProjectName(v)   { setState(p => ({ ...p, projectName: String(v) })); }
   function setDecade(v)        { setState(p => ({ ...p, decade: String(v) })); }
 
-  // ── Custom sound (mic-recorded buffer) → new track + block ─────────────
-  // sound: { name, samples (Array | Float32Array), sampleRate, duration }
-  // startTime: where on the timeline to place the block (default = current playhead)
-  function addCustomSoundTrack(sound, startTime = 0) {
+  // Recorded PCM → one clip on an existing synth lane (not a new track).
+  function addRecordedBlockToTrack(trackId, sound, startTime = 0) {
     setState(prev => {
-      if (prev.tracks.length >= MAX_TRACKS) return prev;
-      const samples = sound.samples instanceof Float32Array
-        ? sound.samples
-        : Float32Array.from(sound.samples);
-      const trackId = `t-mic-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      const blockId = `b-mic-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const track = prev.tracks.find((t) => t.id === trackId);
+      if (!track || !sound?.samples) return prev;
 
-      const track = {
-        id:                  trackId,
-        name:                sound.name ?? "Mic recording",
-        color:               TRACK_COLORS[prev.tracks.length % TRACK_COLORS.length],
-        waveform:            "mic",
-        customFormula:       sound.formula ?? "",
-        amplitude:           1,
-        frequency:           1,
-        phase:               0,
-        volume:              0.8,
-        muted:               false,
-        soloed:              false,
-        recordedSamples:     samples,
-        recordedSampleRate:  sound.sampleRate ?? 44100,
-        isMic:               true,
-        blocks: [{
-          id:        blockId,
-          startTime: Math.max(0, Number(startTime) || 0),
-          duration:  sound.duration ?? (samples.length / (sound.sampleRate ?? 44100)),
-        }],
+      let raw;
+      try {
+        raw = sound.samples instanceof Float32Array ? sound.samples : Float32Array.from(sound.samples);
+      } catch {
+        return prev;
+      }
+      if (!raw.length) return prev;
+
+      const srNum = Number(sound.sampleRate);
+      const sr = srNum > 0 && Number.isFinite(srNum) ? srNum : 44100;
+
+      let dur = Number(sound.duration);
+      if (!Number.isFinite(dur) || dur <= 0) dur = raw.length / sr;
+      dur = Math.max(0.01, Math.min(86400, dur));
+
+      let t0 = Number(startTime);
+      if (!Number.isFinite(t0) || t0 < 0) t0 = 0;
+
+      const samples = Float32Array.from(raw);
+
+      const blockId = `b-mic-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const block = {
+        id: blockId,
+        startTime: t0,
+        duration: dur,
+        recordedSamples: samples,
+        recordedSampleRate: sr,
       };
+
+      let nextTrack = track;
+      if (nextTrack.recordedSamples?.length || nextTrack.isMic) {
+        nextTrack = {
+          ...track,
+          recordedSamples: undefined,
+          recordedSampleRate: undefined,
+          isMic: false,
+        };
+      }
+
+      const nextTracks = prev.tracks.map((t) =>
+        t.id === trackId ? { ...nextTrack, blocks: [...t.blocks, block] } : t
+      );
 
       return {
         ...prev,
-        tracks: [...prev.tracks, track],
+        tracks: nextTracks,
         selectedTrackId: trackId,
-        selectedBlockId: blockId,
+        selectedBlocks: [{ trackId, blockId }],
       };
     });
   }
@@ -411,10 +526,10 @@ export function useDAWState() {
       tracks:          project.tracks.map((t, i) => ({
         ...createTrack(i),
         ...t,
-        blocks: (t.blocks ?? []).map(b => ({ ...b })),
+        blocks: (t.blocks ?? []).map(normalizeBlock),
       })),
       selectedTrackId: project.tracks[0]?.id ?? prev.selectedTrackId,
-      selectedBlockId: null,
+      selectedBlocks: [],
       bpm:             Number(project.bpm)          || prev.bpm,
       masterVolume:    Number(project.masterVolume) || prev.masterVolume,
       decade:          project.decade ?? prev.decade,
@@ -452,6 +567,7 @@ export function useDAWState() {
       ...prev,
       tracks:          n.tracks,
       selectedTrackId: n.tracks[0]?.id ?? prev.selectedTrackId,
+      selectedBlocks: [],
       bpm:             n.bpm,
       masterVolume:    n.masterVolume,
       isPlaying:       false,
@@ -474,11 +590,12 @@ export function useDAWState() {
     actions: {
       addTrack, deleteTrack, updateTrack, selectTrack, duplicateTrack,
       addBlock, moveBlock, moveBlockToTrack, resizeBlock, deleteBlock,
-      duplicateBlock, splitBlock, copyBlock, pasteBlock, selectBlock,
+      duplicateBlock, splitBlock, copyBlock, pasteBlock, selectBlock, clearBlockSelection,
+      deleteSelectedBlocks,
       setIsPlaying, setIsRecording, setCurrentTime,
       setBpm, setMasterVolume, setZoom,
       setLoopActive, setMetronomActive, setProjectName, setDecade,
-      addCustomSoundTrack, loadProject,
+      addRecordedBlockToTrack, loadProject,
       savePreset, loadPresetData, deletePreset,
     },
   };

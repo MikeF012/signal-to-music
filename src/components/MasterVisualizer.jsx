@@ -33,6 +33,16 @@ const peakHold  = [];
 const PEAK_HOLD = 36; // frames to hold peak
 const peakTimer = [];
 
+function measureRmsTimeDomain(timeData) {
+  if (!timeData || !timeData.length) return 0;
+  let s = 0;
+  for (let i = 0; i < timeData.length; i++) {
+    const v = (timeData[i] - 128) / 128;
+    s += v * v;
+  }
+  return Math.sqrt(s / timeData.length);
+}
+
 export default function MasterVisualizer({ analyser }) {
   const canvasRef   = useRef(null);
   const particleRef = useRef([]);
@@ -85,34 +95,38 @@ export default function MasterVisualizer({ analyser }) {
 
       // ── Particle / waveform for 80s / 90s / default ─────────────────
       let amp = 0;
-      let hasAudio = false;
+      let rmsSig = 0;
+      let hasAnalyser = false;
       if (analyser) {
         analyser.getByteTimeDomainData(timeData);
-        hasAudio = true;
+        hasAnalyser = true;
+        rmsSig = measureRmsTimeDomain(timeData);
         for (let i = 0; i < timeData.length; i++) amp += Math.abs(timeData[i] - 128);
         amp = Math.min(1, (amp / timeData.length / 128) * 8);
       }
+      const playingSignal = hasAnalyser && rmsSig > 0.0035;
 
       if (is80s) {
-        ctx.fillStyle = `rgba(8, 6, 4, ${hasAudio && amp > 0.02 ? 0.09 : 0.16})`;
+        ctx.fillStyle = `rgba(8, 6, 4, ${playingSignal ? 0.09 : 0.16})`;
       } else if (is90s) {
-        ctx.fillStyle = `rgba(4, 8, 20, ${hasAudio && amp > 0.02 ? 0.07 : 0.13})`;
+        ctx.fillStyle = `rgba(4, 8, 20, ${playingSignal ? 0.07 : 0.13})`;
       } else {
-        ctx.fillStyle = `rgba(8, 3, 6, ${hasAudio && amp > 0.02 ? 0.1 : 0.18})`;
+        ctx.fillStyle = `rgba(8, 3, 6, ${playingSignal ? 0.1 : 0.18})`;
       }
       ctx.fillRect(0, 0, w, h);
 
       // Particles
       for (const p of particleRef.current) {
-        p.x += p.vx + (Math.random() - 0.5) * amp * 3.5;
-        p.y += p.vy + (Math.random() - 0.5) * amp * 2;
+        const motion = playingSignal ? amp : 0;
+        p.x += p.vx + (Math.random() - 0.5) * motion * 3.5;
+        p.y += p.vy + (Math.random() - 0.5) * motion * 2;
         if (p.x < 0) p.x = w; else if (p.x > w) p.x = 0;
         if (p.y < 0) p.y = h; else if (p.y > h) p.y = 0;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r + amp * 2.2, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, p.r + (playingSignal ? amp * 2.2 : 0), 0, Math.PI * 2);
         const sat = (is80s || is90s) ? "100%" : "80%";
         const lit = is90s ? "65%" : "60%";
-        ctx.fillStyle = `hsla(${p.hue}, ${sat}, ${lit}, ${0.22 + amp * 0.5})`;
+        ctx.fillStyle = `hsla(${p.hue}, ${sat}, ${lit}, ${0.22 + (playingSignal ? amp * 0.5 : 0)})`;
         ctx.fill();
       }
 
@@ -122,8 +136,8 @@ export default function MasterVisualizer({ analyser }) {
       for (let i = 0; i < 5; i++) {
         const base  = 14 + i * 20;
         const pulse = Math.sin(time * 1.4 + i * 0.9) * 4;
-        const ring  = base + amp * 55 + pulse;
-        const alpha = Math.max(0, (0.38 - i * 0.065) * (0.3 + amp * 0.9));
+        const ring  = base + (playingSignal ? amp * 55 : 0) + (playingSignal ? pulse : 0);
+        const alpha = Math.max(0, (0.38 - i * 0.065) * (playingSignal ? 0.3 + amp * 0.9 : 0.08));
         ctx.beginPath();
         ctx.arc(cx, cy, ring, 0, Math.PI * 2);
         if (is80s) {
@@ -139,7 +153,7 @@ export default function MasterVisualizer({ analyser }) {
             ? `rgba(232, 160, 48, ${alpha})`
             : `rgba(0, 200, 150, ${alpha * 0.6})`;
         }
-        ctx.lineWidth = 1 + amp * 2.5;
+        ctx.lineWidth = 1 + (playingSignal ? amp * 2.5 : 0);
         ctx.stroke();
       }
 
@@ -147,10 +161,10 @@ export default function MasterVisualizer({ analyser }) {
       const waveColor = is80s ? "#d4a050" : is90s ? "#aaff00" : "#e8a030";
       ctx.beginPath();
       ctx.strokeStyle = waveColor;
-      ctx.lineWidth   = 1.5 + amp * 2;
+      ctx.lineWidth   = 1.5 + (playingSignal ? amp * 2 : 0);
       ctx.shadowColor = waveColor;
-      ctx.shadowBlur  = 8 + amp * 28;
-      if (hasAudio) {
+      ctx.shadowBlur  = playingSignal ? 8 + amp * 28 : 0;
+      if (playingSignal) {
         const step = w / timeData.length;
         for (let i = 0; i < timeData.length; i++) {
           const v = timeData[i] / 128 - 1;
@@ -159,11 +173,8 @@ export default function MasterVisualizer({ analyser }) {
           i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         }
       } else {
-        for (let x = 0; x <= w; x += 2) {
-          const y = cy + Math.sin(x * 0.014 + time * 2.1) * 6
-                       * (0.3 + Math.sin(time * 0.65) * 0.2);
-          x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        }
+        ctx.moveTo(0, cy);
+        ctx.lineTo(w, cy);
       }
       ctx.stroke();
       ctx.shadowBlur = 0;
@@ -212,22 +223,37 @@ function draw2000s(ctx, w, h, time, analyser, freqData, timeData) {
     ctx.fillText(dbLabels[i], w - 4, y - 2);
   }
 
-  // Collect frequency data
   const N_BARS  = 72;
   const barArea = w - 6;
   const barW    = barArea / N_BARS;
-  let hasAudio  = false;
-
+  let hasAnalyserFreq = false;
   if (analyser) {
     try {
       analyser.getByteFrequencyData(freqData);
-      hasAudio = true;
+      hasAnalyserFreq = true;
     } catch (_) {}
+  }
+
+  let silentMix = true;
+  let rmsLevel  = 0;
+  if (analyser) {
+    try {
+      analyser.getByteTimeDomainData(timeData);
+      rmsLevel  = measureRmsTimeDomain(timeData);
+      silentMix = rmsLevel <= 0.0035;
+    } catch (_) { silentMix = true; }
+  }
+
+  if (silentMix) {
+    for (let i = 0; i < N_BARS; i++) {
+      peakHold[i]  = 0;
+      peakTimer[i] = 0;
+    }
   }
 
   for (let i = 0; i < N_BARS; i++) {
     let val;
-    if (hasAudio) {
+    if (!silentMix && hasAnalyserFreq) {
       // Map bar index logarithmically across frequency bins
       const binStart = Math.floor(Math.pow(i / N_BARS, 1.5) * (freqData.length * 0.65));
       const binEnd   = Math.floor(Math.pow((i + 1) / N_BARS, 1.5) * (freqData.length * 0.65));
@@ -236,14 +262,10 @@ function draw2000s(ctx, w, h, time, analyser, freqData, timeData) {
       for (let b = binStart; b < binEnd; b++) sum += freqData[b];
       val = (sum / count) / 255;
     } else {
-      // Idle animation: low undulating bars
-      val = Math.max(0.02,
-        (Math.sin(i * 0.28 + time * 1.8) * 0.08 + 0.1) *
-        (0.6 + Math.sin(i * 0.05 + time * 0.4) * 0.4)
-      );
+      val = 0;
     }
 
-    const barH    = Math.max(2, val * (h - 4));
+    const barH    = silentMix ? 0 : Math.max(3, val * (h - 8));
     const x       = i * barW + 1;
     const y       = h - barH - 2;
 
@@ -280,28 +302,22 @@ function draw2000s(ctx, w, h, time, analyser, freqData, timeData) {
       b = 20;
     }
 
-    ctx.fillStyle = `rgb(${r},${g},${b})`;
-    ctx.fillRect(x, y, barW - 2, barH);
+    if (!silentMix) {
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(x, y, barW - 2, barH);
+    }
 
-    // Peak hold dot
-    const peakY = h - peakHold[i] - 2;
-    ctx.fillStyle = peakHold[i] > barH * 1.02 ? "rgba(255,255,255,.75)" : `rgb(${r},${g},${b})`;
-    ctx.fillRect(x, peakY - 2, barW - 2, 2);
+    if (!silentMix) {
+      const peakY = h - peakHold[i] - 2;
+      ctx.fillStyle = peakHold[i] > barH * 1.02 ? "rgba(255,255,255,.75)" : `rgb(${r},${g},${b})`;
+      ctx.fillRect(x, peakY - 2, barW - 2, 2);
+    }
   }
 
   // Master level meter strip on right (6px wide)
-  if (hasAudio) {
-    try {
-      analyser.getByteTimeDomainData(timeData);
-    } catch (_) {}
-    let rmsSum = 0;
-    for (let i = 0; i < timeData.length; i++) {
-      const v = (timeData[i] - 128) / 128;
-      rmsSum += v * v;
-    }
-    const rms = Math.sqrt(rmsSum / timeData.length);
-    const meterH = Math.min(h - 4, rms * 4 * (h - 4));
-    ctx.fillStyle = rms > 0.5 ? "#ff3322" : rms > 0.25 ? "#ffcc00" : "#44dd66";
+  if (!silentMix) {
+    const meterH = Math.min(h - 4, rmsLevel * 4 * (h - 4));
+    ctx.fillStyle = rmsLevel > 0.5 ? "#ff3322" : rmsLevel > 0.25 ? "#ffcc00" : "#44dd66";
     ctx.fillRect(w - 5, h - meterH - 2, 4, meterH);
   }
 }

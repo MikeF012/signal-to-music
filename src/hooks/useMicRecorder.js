@@ -1,6 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { analyzeRecording } from "../utils/fftAnalysis";
 
+/** Concatenate `buffers` holding `total` samples, take last `want` samples chronological (for live FFT tail). */
+function tailSampleWindow(buffers, total, want) {
+  const n = Math.min(want, total);
+  if (n <= 0) return new Float32Array(0);
+  const out = new Float32Array(n);
+  let remaining = total - n;
+  let o = 0;
+  for (const b of buffers) {
+    if (remaining >= b.length) {
+      remaining -= b.length;
+      continue;
+    }
+    const start = remaining > 0 ? remaining : 0;
+    remaining = 0;
+    const slice = b.subarray(start);
+    const take = Math.min(slice.length, n - o);
+    out.set(slice.subarray(0, take), o);
+    o += take;
+    if (o >= n) break;
+  }
+  return out;
+}
+
 // Hook that records from the user's microphone. While active, exposes:
 //   - liveSamples : Float32Array, growing, for drawing the waveform live
 //   - peakLevel   : 0..1 instantaneous loudness, for the mic glow animation
@@ -13,6 +36,7 @@ export function useMicRecorder() {
   const [peakLevel, setPeakLevel] = useState(0);
   const [elapsed,   setElapsed]   = useState(0);
   const [liveSamples, setLiveSamples] = useState(new Float32Array(0));
+  const [liveAnalysis, setLiveAnalysis] = useState(null);
 
   const ctxRef        = useRef(null);
   const streamRef     = useRef(null);
@@ -24,6 +48,7 @@ export function useMicRecorder() {
   const frameRef      = useRef(0);
 
   const stop = useCallback(async () => {
+    const srCapture = ctxRef.current?.sampleRate ?? 44100;
     try { procRef.current?.disconnect();   } catch {}
     try { sourceRef.current?.disconnect(); } catch {}
     try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
@@ -33,8 +58,8 @@ export function useMicRecorder() {
     sourceRef.current = null;
     streamRef.current = null;
     setActive(false);
+    setLiveAnalysis(null);
 
-    const sr     = ctxRef.current?.sampleRate ?? 44100;
     const merged = new Float32Array(totalSamples.current);
     let off = 0;
     for (const b of buffersRef.current) { merged.set(b, off); off += b.length; }
@@ -43,8 +68,8 @@ export function useMicRecorder() {
     buffersRef.current = [];
     totalSamples.current = 0;
 
-    const analysis = analyzeRecording(merged, sr);
-    return { samples: merged, sampleRate: sr, analysis };
+    const analysis = analyzeRecording(merged, srCapture);
+    return { samples: merged, sampleRate: srCapture, analysis };
   }, []);
 
   const start = useCallback(async () => {
@@ -147,5 +172,22 @@ export function useMicRecorder() {
     if (!active && frameRef.current) cancelAnimationFrame(frameRef.current);
   }, [active]);
 
-  return { active, error, peakLevel, elapsed, liveSamples, start, stop };
+  // Live FFT / approximate formula update while capturing (runs on tail of buffered audio).
+  useEffect(() => {
+    if (!active) return;
+    const runner = () => {
+      const ctx = ctxRef.current;
+      const total = totalSamples.current;
+      if (!ctx || total < 1024) return;
+      const sr = ctx.sampleRate;
+      const want = Math.min(total, Math.floor(sr * 2.5)); // analyses up to last ~2.5 s
+      const tail = tailSampleWindow(buffersRef.current, total, want);
+      setLiveAnalysis(analyzeRecording(tail, sr));
+    };
+    runner();
+    const id = window.setInterval(runner, 450);
+    return () => window.clearInterval(id);
+  }, [active]);
+
+  return { active, error, peakLevel, elapsed, liveSamples, liveAnalysis, start, stop };
 }

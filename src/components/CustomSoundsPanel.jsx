@@ -1,9 +1,12 @@
 import React from "react";
 
-// Library of saved mic recordings. Drag onto the timeline to add as a track.
+// Library of saved recordings. Drops become clips on whichever lane receives the drag / selected lane when using +.
 export default function CustomSoundsPanel({ sounds, onAdd, onRemove, onRename }) {
   function handleDragStart(e, sound) {
     e.dataTransfer.setData("application/x-signal-sound", sound.id);
+    try {
+      e.dataTransfer.setData("text/plain", `signal-sound:${sound.id}`);
+    } catch {/* some browsers disallow duplicate text/plain */}
     e.dataTransfer.effectAllowed = "copy";
   }
 
@@ -16,7 +19,7 @@ export default function CustomSoundsPanel({ sounds, onAdd, onRemove, onRename })
 
       {sounds.length === 0 ? (
         <p className="custom-sounds-empty">
-          Record from the mic and save sounds here. Drag onto the timeline to use them.
+          Record from the mic and save sounds here. Drag a sound onto a lane (or tap it when a track is selected) to place a clip.
         </p>
       ) : (
         <ul className="custom-sounds-list">

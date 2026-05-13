@@ -9,7 +9,8 @@ const base = { width: 18, height: 18, viewBox: "0 0 24 24", "aria-hidden": true 
 export function TransportSkipStart({ className, size = 18 }) {
   return (
     <svg {...base} width={size} height={size} className={className}>
-      <path fill="currentColor" d="M5 5h2.5v14H5V5z M7.5 6.5L20 12 9.5 18.5V6.5z" />
+      {/* Bar at start edge + triangle pointing left into the bar */}
+      <path fill="currentColor" d="M5 5h3v14H5V5zm14 0L10 12l9 7V5z" />
     </svg>
   );
 }
