@@ -10,7 +10,7 @@ const FULL_STEPS = [
   {
     selector: '[data-tour="transport"]',
     title:    "Transport Bar",
-    body:     "Play, pause, export recording, BPM, zoom, presets, Appearances, and account.",
+    body:     "Play, BPM, zoom, microphone, appearances, and project name. Projects, presets, JSON backup, and Cloud save live under your Profile (avatar).",
     place:    "below",
   },
   {
@@ -40,7 +40,7 @@ const FULL_STEPS = [
   {
     selector: '[data-tour="avatar"]',
     title:    "Your Account",
-    body:     "Sign in to sync presets, Preferences, Appearance, backups, Premium tools, cloud saves, and replay these tours whenever you want.",
+    body:     "Your Profile menu holds Export/Import JSON, Save to Cloud, presets library, account, and preferences.",
     place:    "below-left",
   },
 ];
@@ -67,7 +67,7 @@ const QUICK_STEPS = [
   {
     selector: '[data-tour="transport"]',
     title:    "Press Play",
-    body:     "Playback animates instantly and obeys the BPM and Zoom controls beside the HUD clock.",
+    body:     "Playback animates instantly. Use Record to capture a performance export (MP4 when the browser supports it).",
     place:    "below",
   },
   {
@@ -139,7 +139,10 @@ export default function TutorialTour({
       <div className="tour-overlay tour-overlay--chooser">
         <div className="tour-chooser-card" role="dialog" aria-labelledby="tour-choose-title">
           <h2 id="tour-choose-title" className="tour-chooser-title">Welcome to Signal Synth</h2>
-          <p className="tour-chooser-sub">Pick how you want to learn the layout.</p>
+          <p className="tour-chooser-sub">Pick how you want to explore the workspace.</p>
+          <p className="tour-chooser-note">
+            Work is not auto-saved. Manually &apos;Export&apos; to JSON or &apos;Save to Cloud&apos; via your Profile. Recording generates an MP4 file.
+          </p>
           <div className="tour-chooser-grid">
             <button
               type="button"

@@ -2,14 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { compileCustomFormula } from "../math/waveMath";
 import FormulaKeypad from "./FormulaKeypad";
 
-const INLINE_EXAMPLES = ["sin(t)", "cos(2t)", "sin(t)+cos(2t)"];
 const MOBILE_FORMULA_MQ = "(max-width: 768px)";
 
-/** Narrow viewports match compact mobile CSS; avoids OS keyboard jank — same breakpoint as TrackEditor/mobile layout. */
-function useFormulaMobileViewport() {
+function useNarrowViewport768() {
   const [narrow, setNarrow] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia(MOBILE_FORMULA_MQ).matches,
-  );
+    typeof window !== "undefined" && window.matchMedia(MOBILE_FORMULA_MQ).matches);
 
   useEffect(() => {
     const mq = window.matchMedia(MOBILE_FORMULA_MQ);
@@ -24,16 +21,29 @@ function useFormulaMobileViewport() {
 
 export default function NaturalMathInput({ value, onChange, error, onCommit }) {
   const inputRef = useRef(null);
-  const narrowVp = useFormulaMobileViewport();
+  const blurTimer = useRef(null);
+  const narrowVp = useNarrowViewport768();
+  const [keypadVisible, setKeypadVisible] = useState(false);
 
-  const liveEval = useMemo(() => compileCustomFormula(value.trim() || ""),
-    [value]);
-
+  const liveEval = useMemo(() => compileCustomFormula(value.trim() || ""), [value]);
   const combinedError = error || liveEval.error;
   const isValidFormula = Boolean(value.trim() && !combinedError);
 
-  /** Keep synthetic caret position after controlled updates. */
   const moveCursor = useRef(null);
+
+  function cancelBlurHide() {
+    if (blurTimer.current != null) {
+      window.clearTimeout(blurTimer.current);
+      blurTimer.current = null;
+    }
+  }
+
+  function scheduleBlurHide() {
+    cancelBlurHide();
+    blurTimer.current = window.setTimeout(() => setKeypadVisible(false), 180);
+  }
+
+  useEffect(() => () => cancelBlurHide(), []);
 
   function insertAtCursor(rawToken) {
     const element = inputRef.current;
@@ -90,9 +100,7 @@ export default function NaturalMathInput({ value, onChange, error, onCommit }) {
       try {
         element.focus({ preventScroll: true });
         element.setSelectionRange(pos, pos);
-      } catch {
-        /* noop */
-      }
+      } catch { /* noop */ }
     });
   }, [value]);
 
@@ -110,87 +118,43 @@ export default function NaturalMathInput({ value, onChange, error, onCommit }) {
     });
   }, [onChange]);
 
-  const handleDoneTouch = useCallback(() => {
+  const handleApply = useCallback(() => {
     if (onCommit) onCommit(inputRef.current?.value ?? "");
     inputRef.current?.blur();
+    setKeypadVisible(false);
   }, [onCommit]);
-
-  const InputTag = narrowVp ? "textarea" : "input";
-  const editorClass = [
-    "formula-input",
-    narrowVp ? "formula-input--touch" : "",
-    narrowVp ? "formula-input--no-os-kb" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
 
   return (
     <div className="natural-math-editor">
-      <InputTag
+      <input
         ref={inputRef}
-        className={editorClass}
-        readOnly={narrowVp}
-        inputMode={narrowVp ? "none" : undefined}
-        enterKeyHint={narrowVp ? "done" : undefined}
+        className="formula-input formula-input--touch formula-input--no-os-kb"
+        readOnly
+        inputMode="none"
         autoComplete="off"
         autoCorrect="off"
         spellCheck={false}
-        type={narrowVp ? undefined : "text"}
-        rows={narrowVp ? 2 : undefined}
+        type="text"
         value={value}
-        onChange={narrowVp ? undefined : (e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (narrowVp) {
-            e.preventDefault();
-            return;
-          }
-          if (e.key === "Enter" && onCommit && !e.shiftKey) {
-            e.preventDefault();
-            onCommit(e.currentTarget.value);
-          }
+        onChange={undefined}
+        onKeyDown={(e) => e.preventDefault()}
+        onFocus={() => {
+          cancelBlurHide();
+          setKeypadVisible(true);
+          if (narrowVp) inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+          try {
+            const el = inputRef.current;
+            if (!el) return;
+            const len = value.length;
+            el.setSelectionRange(len, len);
+          } catch { /* noop */ }
         }}
-        onFocus={(e) => {
-          if (narrowVp) {
-            e.target.scrollIntoView({ behavior: "smooth", block: "center" });
-            try {
-              const len = value.length;
-              e.target.setSelectionRange(len, len);
-            } catch { /* noop */ }
-          }
-        }}
+        onBlur={() => scheduleBlurHide()}
         placeholder="sin(t) + 0.5sin(2t)  or  sin(t)e^-4t"
-        title={
-          narrowVp
-            ? "Use the on-screen keypad — system keyboard is disabled to keep the layout stable."
-            : "Custom formula — type or use the keypad. Use t as the variable."
-        }
+        title="Use the on-screen keypad (OS keyboard stays off for a stable viewport)."
       />
 
-      {narrowVp && (
-        <p className="formula-kb-hint">Use the keypad below — no OS keyboard</p>
-      )}
 
-      {narrowVp && (
-        <div className="formula-syntax-muted touch-only-formula-examples">
-          <span className="formula-syntax-muted-label">Examples — tap</span>
-          <div className="formula-quick-row">
-            {INLINE_EXAMPLES.map((ex) => (
-              <button
-                key={ex}
-                type="button"
-                className="formula-quick-chip"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  onChange(ex);
-                  moveCursor.current = ex.length;
-                }}
-              >
-                {ex}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className={`formula-live-status ${isValidFormula ? "ok" : "bad"}`} aria-live="polite">
         {isValidFormula ? (
@@ -200,53 +164,26 @@ export default function NaturalMathInput({ value, onChange, error, onCommit }) {
         )}
       </div>
 
-      <div
-        className="formula-keypad-shell"
-        onMouseDown={(e) => {
-          if (!narrowVp) return;
-          if (e.target.closest("button,input,textarea")) return;
-          e.preventDefault();
-        }}
-      >
-        <FormulaKeypad
-          compact={narrowVp}
-          onInsert={(tok) => insertAtCursor(tok)}
-          onBackspace={handleBackspaceAtCursor}
-        />
-        <div className="formula-keypad-actions">
-          <button
-            type="button"
-            className="formula-keypad-action formula-keypad-action--muted"
-            onMouseDown={(e) => { e.preventDefault(); }}
-            onClick={handleClear}
-          >
-            Clear
-          </button>
-          {narrowVp ? (
-            <button
-              type="button"
-              className="formula-keypad-action formula-keypad-action--primary"
-              onMouseDown={(e) => { e.preventDefault(); }}
-              onClick={handleDoneTouch}
-            >
-              Done
-            </button>
-          ) : (
-            onCommit && (
-              <button
-                type="button"
-                className="formula-keypad-action formula-keypad-action--primary"
-                onMouseDown={(e) => { e.preventDefault(); }}
-                onClick={() => onCommit(inputRef.current?.value ?? "")}
-              >
-                Apply
-              </button>
-            )
-          )}
+      {keypadVisible && (
+        <div
+          className="formula-keypad-shell"
+          role="region"
+          aria-label="Scientific keypad"
+          onMouseDown={(e) => {
+            cancelBlurHide();
+            if (!e.target.closest(".formula-input")) e.preventDefault();
+          }}
+        >
+          <FormulaKeypad
+            onInsert={(tok) => insertAtCursor(tok)}
+            onBackspace={handleBackspaceAtCursor}
+            onClear={handleClear}
+            onApply={onCommit ? handleApply : undefined}
+          />
         </div>
-      </div>
+      )}
 
-      {!narrowVp && error && <p className="formula-error">{error}</p>}
+      {error && <p className="formula-error">{error}</p>}
     </div>
   );
 }

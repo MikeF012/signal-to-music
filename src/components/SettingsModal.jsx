@@ -343,7 +343,7 @@ export default function SettingsModal({
                 Clear local cache
               </button>
               <p className="settings-fine">
-                Removes presets and custom sounds saved on this device. Cloud data is unaffected.
+                Removes presets saved on this device. Cloud data is unaffected.
               </p>
             </>
           )}

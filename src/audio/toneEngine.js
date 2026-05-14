@@ -1,8 +1,18 @@
+import { mimeToPerformanceExtension, pickMediaRecorderMime } from "../utils/recordingMime";
+
 // ── Singletons ────────────────────────────────────────────────────────────
+
 let audioCtx       = null;
 let scriptNode     = null;
 let analyserNode   = null;
 let masterGainNode = null;
+
+// Live mix tap for MediaRecorder (master bus after gain)
+let recordingDestination = null;
+let recordingTapAttached = false;
+let mediaRecorder        = null;
+let mediaRecorderChunks  = [];
+let mediaRecorderMime    = "";
 
 // ── Playback state ────────────────────────────────────────────────────────
 let playing         = false;
@@ -49,9 +59,32 @@ function connectGraph() {
     analyserNode.disconnect();
   } catch { /* first connect */ }
 
+  recordingTapAttached = false;
+
   scriptNode.connect(masterGainNode);
   masterGainNode.connect(audioCtx.destination);
   masterGainNode.connect(analyserNode);
+  if (recording && recordingDestination) attachRecordingTap();
+}
+
+function ensureRecordingDestination() {
+  if (!audioCtx) return null;
+  if (!recordingDestination) recordingDestination = audioCtx.createMediaStreamDestination();
+  return recordingDestination;
+}
+
+function attachRecordingTap() {
+  if (!masterGainNode || recordingTapAttached) return;
+  const dest = ensureRecordingDestination();
+  if (!dest) return;
+  masterGainNode.connect(dest);
+  recordingTapAttached = true;
+}
+
+function detachRecordingTap() {
+  if (!masterGainNode || !recordingTapAttached || !recordingDestination) return;
+  try { masterGainNode.disconnect(recordingDestination); } catch {}
+  recordingTapAttached = false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -247,13 +280,87 @@ export function scheduleCountIn(bpm, beats = 4, onBeat) {
 export function startRecording() {
   recordBuffer = [];
   recording    = true;
+  mediaRecorderChunks.length = 0;
+  mediaRecorderMime = "";
+
+  attachRecordingTap();
+  const stream = recordingDestination?.stream;
+
+  const MRok = typeof MediaRecorder !== "undefined" && !!stream?.getTracks?.().length;
+  const chosen = MRok ? (pickMediaRecorderMime() || "") : "";
+
+  if (MRok) {
+    try {
+      mediaRecorder = chosen ? new MediaRecorder(stream, { mimeType: chosen }) : new MediaRecorder(stream);
+      mediaRecorderMime = mediaRecorder.mimeType || chosen || "";
+      mediaRecorder.ondataavailable = (e) => { if (e.data?.size) mediaRecorderChunks.push(e.data); };
+      mediaRecorder.start(250);
+    } catch {
+      mediaRecorder = null;
+      mediaRecorderMime = "";
+    }
+  }
 }
 
+/**
+ * Ends mix capture — prefers MediaRecorder MPEG-4 / WebM, falls back to lossless WAV from PCM buffer.
+ * @returns {Promise<{ blob: Blob, mime: string, extension: string } | null>}
+ */
 export function stopRecording() {
   recording = false;
-  if (recordBuffer.length === 0) return null;
-  const samples = trimSilence(new Float32Array(recordBuffer));
-  return encodeWav(samples, audioCtx?.sampleRate ?? 44100);
+
+  return new Promise((resolve) => {
+    /** PCM fallback mirrors the audible mix (still useful where MediaRecorder yields an empty blob). */
+    function wavFallback() {
+      if (recordBuffer.length === 0) return null;
+      const samples = trimSilence(new Float32Array(recordBuffer));
+      if (samples.length < 16) return null;
+      const blob = encodeWav(samples, audioCtx?.sampleRate ?? 44100);
+      return {
+        blob,
+        mime: "audio/wav",
+        extension: ".wav",
+      };
+    }
+
+    function finishFromMrBlob(blob) {
+      const mime = blob.type || mediaRecorderMime || "";
+      const ext = mimeToPerformanceExtension(mime);
+      return { blob, mime: mime || "audio/mp4", extension: ext };
+    }
+
+    if (!mediaRecorder || typeof mediaRecorder.stop !== "function") {
+      detachRecordingTap();
+      mediaRecorder = null;
+      mediaRecorderChunks.length = 0;
+      resolve(wavFallback());
+      return;
+    }
+
+    const mr = mediaRecorder;
+    mr.onstop = () => {
+      detachRecordingTap();
+      mediaRecorder = null;
+      try {
+        const blob = mediaRecorderChunks.length
+          ? new Blob(mediaRecorderChunks, { type: mr.mimeType || mediaRecorderMime || undefined })
+          : null;
+        mediaRecorderChunks.length = 0;
+        if (blob && blob.size > 512) resolve(finishFromMrBlob(blob));
+        else resolve(wavFallback());
+      } catch {
+        resolve(wavFallback());
+      }
+    };
+
+    try { mr.stop(); }
+    catch {
+      mediaRecorder = null;
+      mediaRecorderChunks.length = 0;
+      detachRecordingTap();
+      resolve(wavFallback());
+    }
+  });
 }
 
 function trimSilence(samples, threshold = 0.0008) {
@@ -275,6 +382,11 @@ export function updateEngine({ tracks = [], masterVolume = 0.8 }) {
 export function disposeAudio() {
   playing   = false;
   recording = false;
+  try { mediaRecorder?.stop(); } catch {}
+  mediaRecorder = null;
+  mediaRecorderChunks.length = 0;
+  detachRecordingTap();
+  recordingDestination = null;
   if (metronomInterval) { clearInterval(metronomInterval); metronomInterval = null; }
   try { audioCtx?.close(); } catch {}
   audioCtx       = null;

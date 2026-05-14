@@ -11,8 +11,10 @@ export default function PlaybackReviewModal({
   onClose,
   title,
   decade = "2010s",
-  audioBlob,           // optional WAV blob to play
+  audioBlob,           // optional encoded mix blob
   duration = 0,
+  recordingExtension = ".wav",
+  recordingMime = "",
   user,
   onSaveDevice,        // () => void
   onSaveCloud,         // () => Promise — may throw with reason on quota fail
@@ -80,6 +82,10 @@ export default function PlaybackReviewModal({
             {formatTime(position)} / {formatTime(duration)}
           </span>
         </div>
+
+        <p className="settings-fine playback-format-hint">
+          Capture format: {(recordingMime || "").split(";")[0] || "mixed"} ({recordingExtension || ".audio"})
+        </p>
 
         {errMsg && <p className="auth-modal-msg error">{errMsg}</p>}
 

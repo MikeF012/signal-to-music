@@ -53,6 +53,71 @@
   --font-display: 'Orbitron', 'Courier New', monospace;
   --font-mono:    'Share Tech Mono', 'Consolas', 'Courier New', monospace;
   --font-body:    'Trebuchet MS', 'Segoe UI', Arial, sans-serif;
+
+  /* Formula keypad (overridden per breakpoint) */
+  --formula-kb-gap: 4px;
+  --formula-kb-cell-h: 32px;
+  --formula-kb-macro-h: 40px;
+}
+
+/* ═════════════════════════════════════════════════════════════
+   Laptop / desktop — larger chrome, roomy controls, tighter lanes
+═══════════════════════════════════════════════════════════════ */
+@media (min-width: 1024px) {
+  :root {
+    --vis-h: clamp(172px, 20vh, 208px);
+    --transport-h: clamp(82px, 10vh, 96px);
+    --signal-h: clamp(174px, 21vh, 214px);
+    --ruler-h: 32px;
+    --sidebar-w: clamp(258px, 22vw, 282px);
+
+    /** Sum of stacked chrome above the track stack — drives lane height budget */
+    --desk-shell-chrome: calc(var(--vis-h) + var(--transport-h) + var(--signal-h) + 16px);
+    --track-h: clamp(
+      40px,
+      calc((100dvh - var(--desk-shell-chrome) - var(--ruler-h)) / 10),
+      54px
+    );
+    --formula-kb-gap: 5px;
+    --formula-kb-cell-h: 34px;
+    --formula-kb-macro-h: 42px;
+  }
+
+  .transport-bar {
+    padding-top: 8px;
+    padding-bottom: 8px;
+    row-gap: 8px;
+  }
+
+  .hw-btn:not(.hw-btn-icon) {
+    padding: 8px 16px;
+    font-size: 0.67rem;
+  }
+
+  .hw-btn-icon {
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+  }
+
+  .hw-btn-icon .transport-glyph {
+    width: 20px;
+    height: 20px;
+  }
+
+  .transport-glyph--sm {
+    width: 16px;
+    height: 16px;
+  }
+
+  .track-header-row {
+    gap: 4px;
+    padding: 5px 8px;
+  }
+
+  .track-name {
+    font-size: 0.61rem;
+  }
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -613,7 +678,7 @@ body {
   /* Subtle inset glow to frame the whole panel */
   box-shadow: inset 0 1px 0 rgba(232,160,48,.08), 0 4px 16px rgba(0,0,0,.4);
   display: grid;
-  grid-template-columns: 106px 1fr;
+  grid-template-columns: 1fr;
   overflow: visible;     /* allow formula popup to escape */
   position: relative;
   z-index: 50;
@@ -662,6 +727,7 @@ body {
   overflow: visible;
   position: relative;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .signal-row {
@@ -785,110 +851,93 @@ body {
 
 .formula-error { font-size: .7rem; color: #ff8aad; margin-top: 2px; }
 
-/* Custom formula keypad (desktop + mobile; mobile uses readOnly + no OS keyboard) */
+/* Formula keypad — macro row (sin/cos/…) + tight numeric grid */
 .formula-keypad-shell {
   margin-top: 8px;
-  padding: 8px;
+  padding: 6px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: rgba(0, 0, 0, 0.22);
 }
 
-.formula-custom-keypad {
+.formula-keypad-split {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: flex-start;
-}
-
-.formula-custom-keypad--compact {
   flex-direction: column;
-  gap: 8px;
-}
-
-.formula-keypad-digits {
-  flex: 0 0 auto;
-  min-width: 0;
-}
-
-.formula-keypad-row {
-  display: flex;
   gap: 6px;
-  margin-bottom: 6px;
 }
 
-.formula-keypad-row--bottom {
-  margin-bottom: 0;
+.formula-sci-macro-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--formula-kb-gap, 4px);
 }
 
-.formula-keypad-functions {
-  flex: 1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
-}
-
-.formula-keypad-btn {
-  min-width: 40px;
-  min-height: 40px;
-  padding: 0 8px;
+.formula-sci-macro-cell {
+  min-height: var(--formula-kb-macro-h, 40px);
+  padding: 0 4px;
+  margin: 0;
   border-radius: 6px;
+  border: 1px solid var(--border-hi);
+  background: linear-gradient(180deg, rgba(42,26,52,.9), rgba(26,14,34,.92));
+  color: var(--text-cream);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.formula-sci-macro-cell--action {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.formula-sci-num-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--formula-kb-gap, 4px);
+}
+
+.formula-sci-num-cell {
+  min-height: var(--formula-kb-cell-h, 32px);
+  padding: 0;
+  margin: 0;
+  border-radius: 4px;
   border: 1px solid var(--border-hi);
   background: var(--bg-btn);
   color: var(--text-cream);
   font-family: var(--font-mono);
   font-size: 0.78rem;
+  font-weight: 700;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
-.formula-keypad-btn--digit {
-  font-size: 0.95rem;
-  font-weight: 700;
-}
-
-.formula-keypad-btn--fn {
-  font-size: 0.68rem;
-  min-width: 38px;
-  padding: 0 6px;
-}
-
-.formula-keypad-btn--wide {
-  flex: 1;
-  min-width: 52px;
-}
-
-.formula-keypad-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-
-.formula-keypad-action {
-  min-height: 40px;
-  padding: 0 16px;
-  border-radius: 8px;
-  border: 1px solid var(--border-hi);
-  font-family: var(--font-display);
-  font-size: 0.62rem;
-  letter-spacing: 0.06em;
+.formula-sci-num-cell--action {
+  font-size: 0.58rem;
   text-transform: uppercase;
-  cursor: pointer;
-}
-
-.formula-keypad-action--muted {
-  background: transparent;
+  letter-spacing: 0.04em;
   color: var(--text-muted);
+  font-weight: 600;
 }
 
-.formula-keypad-action--primary {
+.formula-sci-num-cell--apply {
+  font-size: 0.58rem;
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  text-transform: uppercase;
+  border-color: rgba(232, 160, 48, 0.55);
   background: linear-gradient(180deg, var(--amber), #b07020);
   color: #1a0a08;
-  border-color: rgba(232, 160, 48, 0.6);
-  font-weight: 800;
+}
+
+.formula-sci-macro-cell:disabled,
+.formula-sci-num-cell:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Formula reference toggle */
@@ -967,6 +1016,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex-shrink: 0;
   /* subtle inner glow matching theme */
   box-shadow: inset 0 0 14px rgba(0,0,0,.3), 0 0 0 1px rgba(232,160,48,.04);
 }
@@ -1027,6 +1077,7 @@ body {
   gap: 20px;
   padding-top: 2px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .signal-knob-group {
@@ -1034,6 +1085,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 1px;
+  flex-shrink: 0;
 }
 
 /* Hide the Knob component's own readout — we show our own input instead */
@@ -1158,7 +1210,9 @@ body {
 }
 
 .sidebar-ruler-placeholder {
+  box-sizing: border-box;
   height: var(--ruler-h);
+  min-height: var(--ruler-h);
   flex-shrink: 0;
   background: #0a0608;
   border-bottom: 1px solid var(--border);
@@ -1537,12 +1591,14 @@ body {
    Block context menu
 ──────────────────────────────────────────────────────────── */
 .block-ctx-menu {
-  min-width: 148px;
+  width: max-content;
+  max-width: 200px;
+  min-width: 0;
   background: linear-gradient(180deg, #1e1028, #140c1c);
   border: 1px solid var(--border-hi);
   border-radius: 8px;
   box-shadow: 0 12px 32px rgba(0,0,0,.75), 0 0 0 1px rgba(232,160,48,.08);
-  padding: 4px 0;
+  padding: 3px 0;
   overflow: hidden;
   animation: ctx-pop 0.12s cubic-bezier(0.22,1,0.36,1);
 }
@@ -1555,13 +1611,13 @@ body {
 .block-ctx-item {
   display: block;
   width: 100%;
-  padding: 7px 14px;
+  padding: 5px 10px;
   text-align: left;
   background: none;
   border: none;
   color: var(--text-cream);
   font-family: var(--font-mono);
-  font-size: .75rem;
+  font-size: .68rem;
   cursor: pointer;
   letter-spacing: .03em;
   transition: background 60ms;
@@ -1570,7 +1626,49 @@ body {
 .block-ctx-item:hover { background: rgba(232,160,48,.1); color: var(--amber); }
 .block-ctx-item.danger:hover { background: rgba(232,48,80,.12); color: var(--danger); }
 
-/* Right-click on empty lane area shows paste menu when clipboard has content */
+/* Touch long-press — compact anchored list */
+.block-touch-popover {
+  background: linear-gradient(180deg, #1e1028, #140c1c);
+  border: 1px solid var(--border-hi);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.75), 0 0 0 1px rgba(232,160,48,.06);
+  padding: 3px 0;
+}
+
+.block-touch-popover-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.block-touch-popover-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border: none;
+  background: none;
+  color: var(--text-cream);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+.block-touch-popover-btn:hover:not(:disabled) {
+  background: rgba(232,160,48,.08);
+  color: var(--amber);
+}
+
+.block-touch-popover-btn.danger:hover:not(:disabled) {
+  background: rgba(232,48,80,.08);
+  color: var(--danger);
+}
+
+.block-touch-popover-btn:disabled {
+  opacity: 0.35;
+}
+
 
 /* ─────────────────────────────────────────────────────────────
    Countdown overlay
@@ -1611,6 +1709,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  flex-shrink: 0;
 }
 
 .knob-svg { display: block; overflow: visible; cursor: ns-resize; }
@@ -4360,9 +4459,19 @@ body {
   transition: background 80ms, color 80ms;
 }
 .avatar-menu-item:hover { background: rgba(232,160,48,.08); color: var(--amber); }
+.avatar-menu-item:disabled { opacity: 0.38; cursor: not-allowed; }
 .avatar-menu-item.danger:hover { background: rgba(232,48,80,.08); color: var(--danger); }
 .avatar-menu-icon { width: 18px; text-align: center; opacity: .85; }
 .avatar-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+.avatar-menu-section {
+  padding: 6px 10px 2px;
+  font-family: var(--font-display);
+  font-size: .52rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
 
 /* ═════════════════════════════════════════════════════════════
    GENERIC MODAL
@@ -5408,16 +5517,28 @@ body {
 }
 
 /* ═════════════════════════════════════════════════════════════
-   Mobile (override / extend earlier rules)
+   Responsive
 ═══════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) {
+  .signal-knobs-row {
+    margin-bottom: 6px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+/* Mobile (override / extend earlier rules) */
 @media (max-width: 768px) {
   :root {
-    --vis-h:       88px;
-    --transport-h: 48px;
-    --track-h:     58px;
-    --ruler-h:     26px;
+    --vis-h:       74px;
+    --transport-h: 44px;
+    --track-h:     50px;
+    --ruler-h:     32px;
     --signal-h:    auto;
     --sidebar-w:   100%;
+    --formula-kb-gap: 3px;
+    --formula-kb-cell-h: 30px;
+    --formula-kb-macro-h: 36px;
   }
 
   .master-visualizer {
@@ -5449,6 +5570,7 @@ body {
 
   .sidebar-ruler-placeholder {
     height: var(--ruler-h);
+    min-height: var(--ruler-h);
     padding: 0 8px;
     gap: 4px;
   }
@@ -5473,20 +5595,23 @@ body {
 
   .formula-wrap-full .formula-input {
     height: auto;
-    min-height: 44px;
-    padding: 8px 10px;
-    font-size: 0.94rem;
+    min-height: 40px;
+    padding: 6px 10px;
+    font-size: 0.87rem;
   }
 
-  .formula-keypad-btn {
-    min-width: 36px;
-    min-height: 38px;
-    font-size: 0.74rem;
-  }
-
-  .formula-keypad-btn--fn {
-    min-width: 34px;
+  .formula-sci-num-cell {
+    min-height: var(--formula-kb-cell-h, 30px);
     font-size: 0.62rem;
+  }
+
+  .formula-sci-num-cell--apply {
+    font-size: 0.54rem;
+  }
+
+  .formula-sci-macro-cell {
+    min-height: var(--formula-kb-macro-h, 36px);
+    font-size: 0.68rem;
   }
 
   .track-vol-row {
@@ -5706,7 +5831,14 @@ body {
   margin: 0 0 6px;
 }
 
-.tour-chooser-sub { margin: 0 0 14px; font-size: .82rem; color: var(--text-cream); }
+.tour-chooser-sub { margin: 0 0 8px; font-size: .82rem; color: var(--text-cream); }
+
+.tour-chooser-note {
+  margin: 0 0 14px;
+  font-size: .72rem;
+  line-height: 1.45;
+  color: var(--text-amber);
+}
 
 .tour-chooser-grid {
   display: grid;

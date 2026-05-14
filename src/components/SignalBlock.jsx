@@ -1,6 +1,6 @@
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import BlockActionBottomSheet from "./BlockActionBottomSheet";
+import BlockTouchPopover from "./BlockTouchPopover";
 import { minClipDurationBeat } from "../utils/gridSnap";
 
 // ── Mini waveform preview ─────────────────────────────────────────────────
@@ -112,6 +112,24 @@ function BlockMenu({
   onClose,
 }) {
   const ref = useRef(null);
+  const [pos, setPos] = useState({ left: x, top: y });
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) {
+      setPos({ left: x, top: y });
+      return;
+    }
+    const pad = 8;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    let left = Math.min(Math.max(pad, x), window.innerWidth - w - pad);
+    let top  = Math.min(Math.max(pad, y), window.innerHeight - h - pad);
+    if (y + h > window.innerHeight - pad) top = Math.max(pad, y - h - 10);
+    if (top + h > window.innerHeight - pad)
+      top = Math.max(pad, window.innerHeight - h - pad);
+    setPos({ left, top });
+  }, [x, y]);
 
   useEffect(() => {
     function onDoc(e) {
@@ -128,9 +146,10 @@ function BlockMenu({
 
   const style = {
     position: "fixed",
-    left: x,
-    top:  y,
+    left: pos.left,
+    top:  pos.top,
     zIndex: 400,
+    maxWidth: 200,
   };
 
   const items = [
@@ -206,8 +225,10 @@ function SignalBlock({
   const left  = block.startTime * zoom;
   const width = Math.max(2, block.duration * zoom);
 
-  const [menu, setMenu] = useState(null); // { x, y } | null
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [menu, setMenu] = useState(null); // { x, y } | null — desktop ctx menu anchor
+  const [touchPopoverOpen, setTouchPopoverOpen] = useState(false);
+  const touchAnchorRef = useRef(null);
+  const [touchAnchorState, setTouchAnchorState] = useState(null);
   const [longPressGlow, setLongPressGlow] = useState(false);
 
   const resizeDrag = useRef(null);
@@ -229,7 +250,9 @@ function SignalBlock({
   }
 
   function openActionSheetFromLongPress() {
-    setSheetOpen(true);
+    const pt = touchAnchorRef.current;
+    setTouchAnchorState(pt ? { ...pt } : null);
+    setTouchPopoverOpen(true);
     setLongPressGlow(true);
     window.setTimeout(() => setLongPressGlow(false), 420);
     onSelect?.(false);
@@ -277,6 +300,8 @@ function SignalBlock({
       attachGlobalBlockDrag(e);
       return;
     }
+
+    touchAnchorRef.current = { clientX: e.clientX, clientY: e.clientY };
 
     clearLongPressTimer();
     lpTimerRef.current = window.setTimeout(() => {
@@ -448,10 +473,11 @@ function SignalBlock({
       )}
 
       {touchUi && (
-        <BlockActionBottomSheet
-          open={sheetOpen}
-          onClose={() => setSheetOpen(false)}
+        <BlockTouchPopover
+          open={touchPopoverOpen}
+          anchor={touchAnchorState}
           actions={sheetActions}
+          onClose={() => setTouchPopoverOpen(false)}
         />
       )}
     </>

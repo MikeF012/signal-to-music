@@ -7,15 +7,6 @@ const WAVEFORMS = ["sine", "cosine", "square", "custom"];
 
 const FIRST_DRAG_HINT_KEY = "signal-drag-to-timeline-hint-dismissed";
 
-const FORMULA_EXAMPLES = [
-  { expr: "sin(t)",              desc: "pure sine" },
-  { expr: "cos(2*t)",            desc: "cosine, 2× freq" },
-  { expr: "sin(t) + 0.5sin(3t)", desc: "odd harmonics" },
-  { expr: "sin(t)e^-4t",         desc: "damped pluck" },
-  { expr: "sin(t)*sin(0.5t)",    desc: "AM modulation" },
-  { expr: "square(t)",           desc: "square alias" },
-];
-
 export default function TrackEditor({
   track,
   onUpdate,
@@ -24,7 +15,6 @@ export default function TrackEditor({
 }) {
   const chipArmRef = useRef(null); // touch synth drag hybrid: suppress duplicate HTML drag
 
-  const [showRef, setShowRef] = useState(false);
   const [showDragHintBanner, setShowDragHintBanner] = useState(() => {
     if (typeof localStorage === "undefined") return false;
     try {
@@ -174,19 +164,6 @@ export default function TrackEditor({
           <button type="button" className="signal-drag-hint-first-dismiss" onClick={dismissDragHintBanner} aria-label="Dismiss hint">×</button>
         </div>
       )}
-      <div className="signal-track-ident">
-        <div
-          className="signal-track-dot"
-          style={{
-            background: track.color,
-            boxShadow:  `0 0 14px ${track.color}99`,
-          }}
-        />
-        <span className="signal-track-name" style={{ color: track.color }}>
-          {track.name}
-        </span>
-      </div>
-
       <div className="signal-body">
 
         <div className="signal-waveform-block">
@@ -194,14 +171,6 @@ export default function TrackEditor({
           <div className="signal-formula-section">
             <div className="signal-formula-header">
               <span className="signal-formula-label">f(t) =</span>
-              <button
-                className="formula-ref-btn interactive-press"
-                type="button"
-                onClick={() => setShowRef(v => !v)}
-                title="Show formula syntax reference"
-              >
-                {showRef ? "hide ref" : "? ref"}
-              </button>
             </div>
             <div className="formula-wrap formula-wrap-full">
               <NaturalMathInput
@@ -214,24 +183,6 @@ export default function TrackEditor({
                   onUpdate(track.id, { customFormula: formula, waveform: "custom" });
                 }}
               />
-              {showRef && (
-                <div className="formula-ref-popup">
-                  <dl>
-                    {FORMULA_EXAMPLES.map(({ expr, desc }) => (
-                      <React.Fragment key={expr}>
-                        <dt
-                          style={{ cursor: "pointer" }}
-                          onClick={() => { set("customFormula", expr); set("waveform", "custom"); }}
-                          title="Click to use this formula"
-                        >
-                          {expr}
-                        </dt>
-                        <dd>{desc}</dd>
-                      </React.Fragment>
-                    ))}
-                  </dl>
-                </div>
-              )}
             </div>
           </div>
 
@@ -249,7 +200,6 @@ export default function TrackEditor({
               size={58}
               label=""
             />
-            <span className="signal-knob-label">Freq</span>
             <input
               type="number"
               className="signal-knob-input"
@@ -276,7 +226,6 @@ export default function TrackEditor({
               size={58}
               label=""
             />
-            <span className="signal-knob-label">Amp</span>
             <input
               type="number"
               className="signal-knob-input"
@@ -303,7 +252,6 @@ export default function TrackEditor({
               size={58}
               label=""
             />
-            <span className="signal-knob-label">Phase</span>
             <input
               type="number"
               className="signal-knob-input"
@@ -319,7 +267,6 @@ export default function TrackEditor({
             />
           </div>
           <div className="signal-knob-group signal-wave-group">
-            <span className="signal-knob-label">Wave</span>
             <div className="signal-wave-buttons">
               {WAVEFORMS.map((w) => (
                 <button

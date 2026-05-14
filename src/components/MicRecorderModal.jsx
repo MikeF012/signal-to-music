@@ -313,12 +313,10 @@ function RecordedPreviewBar({ samples, sampleRate }) {
 export default function MicRecorderModal({
   open,
   onClose,
-  onSaveCustom,
   themeDecade = "2010s",
   selectedTrackId,
   currentTime,
   onAddRecordedToTimeline,
-  onNeedSelectTrack,
 }) {
   const { active, error, peakLevel, elapsed, liveSamples, liveAnalysis, start, stop } = useMicRecorder();
   const [analysis, setAnalysis]   = useState(null);
@@ -375,28 +373,8 @@ export default function MicRecorderModal({
     }
   }
 
-  function handleSaveCustom() {
-    if (!analysis?.samples?.length) return;
-    const a = analysis.analysis;
-    const srNum = Number(analysis.sampleRate);
-    const srSafe = srNum > 0 && Number.isFinite(srNum) ? srNum : 44100;
-    onSaveCustom?.({
-      samples:       Float32Array.from(analysis.samples),
-      sampleRate:    srSafe,
-      duration:      analysis.samples.length / srSafe,
-      fundamentalHz: a?.fundamentalHz ?? 0,
-      shape:         a?.shape ?? "",
-      formula:       a?.formula ?? "",
-      name:          savedName.trim() || `Custom ${new Date().toLocaleTimeString()}`,
-    });
-  }
-
   function handleAddToTimeline() {
-    if (!analysis?.samples?.length) return;
-    if (!selectedTrackId) {
-      onNeedSelectTrack?.();
-      return;
-    }
+    if (!analysis?.samples?.length || !selectedTrackId) return;
 
     const samplesCopy = Float32Array.from(analysis.samples);
     const srRaw = Number(analysis.sampleRate);
@@ -500,11 +478,8 @@ export default function MicRecorderModal({
                 placeholder="name this sound (optional)"
                 maxLength={40}
               />
-              <button type="button" className="hw-btn hw-btn-md" onClick={handleSaveCustom}>
-                Save to Library
-              </button>
               <button type="button" className="hw-btn hw-btn-md active-mint" onClick={handleAddToTimeline}>
-                Add to Timeline
+                Place on timeline
               </button>
               <button type="button" className="hw-btn hw-btn-md" onClick={() => {
                 revealTimerRefs.current.forEach(clearTimeout);

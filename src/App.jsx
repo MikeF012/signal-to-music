@@ -6,7 +6,6 @@ import { useCloudPresets }   from "./hooks/useCloudPresets";
 import { useCloudSongs }     from "./hooks/useCloudSongs";
 import { usePreferences }    from "./hooks/usePreferences";
 import { useOnlineStatus }   from "./hooks/useOnlineStatus";
-import { useCustomSounds }   from "./hooks/useCustomSounds";
 import { compileCustomFormula } from "./math/waveMath";
 import {
   initAudio, startPlayback, stopPlayback, seekTo,
@@ -19,7 +18,7 @@ import {
   downloadProjectFile, projectFromState, readProjectFile,
   estimateProjectSizeBytes, getProjectDuration,
 } from "./utils/projectFile";
-import { readLocalSongs, writeLocalSongs } from "./utils/localSongs";
+
 import { hasCompletedFirstTutorial, markFirstTutorialSeen, resetFirstTutorialFlagForTesting } from "./utils/firstVisitTutorial";
 import { supabaseEnabled } from "./lib/supabase";
 
@@ -41,7 +40,6 @@ const SongsModal          = React.lazy(() => import("./components/SongsModal"));
 const OnboardingModal     = React.lazy(() => import("./components/OnboardingModal"));
 const MicRecorderModal    = React.lazy(() => import("./components/MicRecorderModal"));
 const PlaybackReviewModal = React.lazy(() => import("./components/PlaybackReviewModal"));
-const CustomSoundsPanel   = React.lazy(() => import("./components/CustomSoundsPanel"));
 const TutorialTour           = React.lazy(() => import("./components/TutorialTour"));
 
 import { MAX_TRACKS }    from "./utils/ranges";
@@ -68,8 +66,6 @@ export default function App() {
     saveSong: saveCloudSong, deleteSong: deleteCloudSong, checkLimits: checkCloudLimits,
   } = useCloudSongs(user, prefs.isPremium);
 
-  const customSoundsLib = useCustomSounds();
-
   const touchUi = useTouchUi();
   const timelineRef = useRef(null);
   const synthTouchPayloadRef = useRef(null); // { waveType, customFormula }
@@ -80,18 +76,15 @@ export default function App() {
   const [showPresets,     setShowPresets]     = useState(false);
   const [showSettings,    setShowSettings]    = useState(false);
   const [showSongs,       setShowSongs]       = useState(false);
-  const [showAccount,     setShowAccount]     = useState(false);
   const [showMic,         setShowMic]         = useState(false);
   const [showOnboard,     setShowOnboard]     = useState(false);
   const [showTour,        setShowTour]        = useState(false);
   const [analyser,        setAnalyser]        = useState(null);
   const [countIn,         setCountIn]         = useState(null);
-  const [recordedReview,  setRecordedReview]  = useState(null); // { blob, duration }
-  const [micTrackCue,     setMicTrackCue]      = useState(false);
+  const [recordedReview,  setRecordedReview]  = useState(null); // { blob, duration, extension?, mime? }
   const [tourVariant,     setTourVariant]      = useState("choose"); // choose | quick | full
 
   const sidebarScrollRef = useRef(null);
-  const cueClearTimer     = useRef(null);
   const countInTimer     = useRef(null);
   const fileInputRef     = useRef(null);
 
@@ -108,17 +101,6 @@ export default function App() {
   );
 
   const selectedTrack = compiledTracks.find((t) => t.id === state.selectedTrackId) ?? null;
-
-  function flashTrackSidebarCue() {
-    setMicTrackCue(true);
-    if (cueClearTimer.current) window.clearTimeout(cueClearTimer.current);
-    cueClearTimer.current = window.setTimeout(() => setMicTrackCue(false), 5500);
-  }
-  useEffect(() => () => window.clearTimeout(cueClearTimer.current), []);
-
-  useEffect(() => {
-    if (state.selectedTrackId) setMicTrackCue(false);
-  }, [state.selectedTrackId]);
 
   // ── Push to engine + sync decade theme on load ──────────────────────
   useEffect(() => {
@@ -181,7 +163,7 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     const needsOnboard = !prefs.displayName;
-    if (needsOnboard) setShowOnboard(true);
+    if (needsOnboard) queueMicrotask(() => setShowOnboard(true));
   }, [user, prefs.displayName]);
 
   // ── Dismiss loading screen once React has painted ────────────────────
@@ -339,10 +321,15 @@ export default function App() {
   // ── Record with count-in → review modal on stop ─────────────────────
   async function handleRecord() {
     if (state.isRecording) {
-      const blob = stopRecording();
+      const result = await stopRecording();
       actions.setIsRecording(false);
-      if (blob) {
-        setRecordedReview({ blob, duration: getProjectDuration(state) });
+      if (result?.blob?.size) {
+        setRecordedReview({
+          blob: result.blob,
+          extension: result.extension,
+          mime: result.mime,
+          duration: getProjectDuration(state),
+        });
       }
       return;
     }
@@ -369,21 +356,36 @@ export default function App() {
   // Project save / open
   // ──────────────────────────────────────────────────────────────────────
 
-  function handleSaveProject() {
-    // Save to local song library (and download a backup file)
-    const proj  = projectFromState(state, { decade: prefs.decadeTheme });
-    const local = {
-      id:        `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      name:      proj.name,
-      data:      proj,
-      duration:  proj.duration,
-      decade:    proj.decade,
-      sizeBytes: estimateProjectSizeBytes(proj),
-      createdAt: new Date().toISOString(),
-    };
-    writeLocalSongs([local, ...readLocalSongs()]);
+  /** Export-only — no silent local library mutations. */
+  function handleExportProjectJson() {
     downloadProjectFile(state, { decade: prefs.decadeTheme });
     void hapticSuccess();
+  }
+
+  async function handleSaveCloudProject() {
+    if (!user) {
+      alert("Sign in from the account menu to save sessions to Supabase Cloud.");
+      return;
+    }
+    const proj       = projectFromState(state, { decade: prefs.decadeTheme });
+    const sizeBytes  = estimateProjectSizeBytes(proj);
+    const limit      = checkCloudLimits(proj.duration ?? 0);
+    if (!limit.ok) {
+      alert(limit.reason ?? "Cannot save — cloud quota.");
+      return;
+    }
+    try {
+      await saveCloudSong({
+        name:      proj.name,
+        data:      proj,
+        duration:  proj.duration,
+        decade:    proj.decade,
+        sizeBytes,
+      });
+      void hapticSuccess();
+    } catch (e) {
+      alert(e.message ?? "Cloud save failed.");
+    }
   }
 
   async function handleOpenProjectFile(file) {
@@ -425,26 +427,11 @@ export default function App() {
     }
   }
 
-  function handleAddLibrarySoundClick(sound) {
-    if (!state.selectedTrackId) {
-      flashTrackSidebarCue();
-      return;
-    }
-    handleRecordedClipOnTrack(state.selectedTrackId, sound, state.currentTime);
-  }
-
-  function handleDropLibrarySoundOnTimeline(trackId, soundId, dropTime) {
-    const s = customSoundsLib.sounds.find((x) => x.id === soundId);
-    if (!s) return;
-    handleRecordedClipOnTrack(trackId, s, dropTime);
-  }
-
-  function handleMicSaveCustom(sound) {
-    customSoundsLib.save(sound);
-  }
-
   function handleMicAddRecordedClip(sound, playheadTime) {
-    handleRecordedClipOnTrack(state.selectedTrackId, sound, playheadTime);
+    const trackId = state.selectedTrackId || state.tracks[0]?.id;
+    if (!trackId) return;
+    handleRecordedClipOnTrack(trackId, sound, playheadTime);
+    actions.selectTrack(trackId);
   }
   // ──────────────────────────────────────────────────────────────────────
   // Recorded WAV review → save to device or cloud
@@ -454,24 +441,13 @@ export default function App() {
     if (!recordedReview?.blob) return;
     const date = new Date().toISOString().slice(0, 10);
     const name = (state.projectName || "untitled").replace(/\s+/g, "-");
+    const ext  = recordedReview.extension ?? ".wav";
     const url  = URL.createObjectURL(recordedReview.blob);
     const a    = document.createElement("a");
-    a.href     = url; a.download = `${name}-${date}.wav`;
+    a.href     = url; a.download = `${name}-${date}${ext}`;
     a.click();
     URL.revokeObjectURL(url);
 
-    // Also store project snapshot in local songs
-    const proj  = projectFromState(state, { decade: prefs.decadeTheme });
-    const local = {
-      id:        `local-${Date.now()}`,
-      name:      proj.name,
-      data:      proj,
-      duration:  proj.duration,
-      decade:    proj.decade,
-      sizeBytes: estimateProjectSizeBytes(proj),
-      createdAt: new Date().toISOString(),
-    };
-    writeLocalSongs([local, ...readLocalSongs()]);
     setRecordedReview(null);
     void hapticSuccess();
   }
@@ -535,7 +511,7 @@ export default function App() {
   // ──────────────────────────────────────────────────────────────────────
   async function completeOnboarding({ displayName, decade }) {
     setPrefs({ displayName, decadeTheme: decade });
-    if (user) { try { await updateProfile({ displayName }); } catch {} }
+    if (user) { try { await updateProfile({ displayName }); } catch { /* ignore */ } }
     setShowOnboard(false);
   }
 
@@ -549,13 +525,12 @@ export default function App() {
   }
 
   function clearLocalCache() {
-    if (!confirm("Clear local presets and custom sounds saved on this device?")) return;
+    if (!confirm("Clear local presets saved on this device?")) return;
     try {
       localStorage.removeItem("signal-synth-daw-presets-v1");
-      localStorage.removeItem("signal-custom-sounds-v1");
       localStorage.removeItem("signal-local-songs-v1");
       window.location.reload();
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   // ──────────────────────────────────────────────────────────────────────
@@ -611,7 +586,6 @@ export default function App() {
         isRecording={state.isRecording}
         bpm={state.bpm}
         masterVolume={state.masterVolume}
-        zoom={state.zoom}
         currentTime={state.currentTime}
         loopActive={state.loopActive}
         metronomActive={state.metronomActive}
@@ -628,10 +602,7 @@ export default function App() {
         onLoopToggle={handleLoopToggle}
         onMetronomToggle={handleMetronomToggle}
         onProjectNameChange={actions.setProjectName}
-        onOpenPresets={() => setShowPresets(true)}
         onOpenMic={() => setShowMic(true)}
-        onOpenProject={pickProjectFile}
-        onSaveProject={handleSaveProject}
         currentDecade={prefs.decadeTheme}
         onDecadeChange={(id) => setPrefs({ decadeTheme: id })}
         rightSlot={
@@ -639,11 +610,16 @@ export default function App() {
             <AvatarMenu
               user={user}
               displayName={prefs.displayName}
+              userSignedIn={Boolean(user)}
               onSignIn={() => setShowAuth(true)}
               onSignOut={logout}
               onOpenAccount={() => { setShowSettings(true); }}
               onOpenSettings={() => setShowSettings(true)}
               onOpenSongs={() => setShowSongs(true)}
+              onOpenPresets={() => setShowPresets(true)}
+              onExportProjectJson={handleExportProjectJson}
+              onImportProject={pickProjectFile}
+              onSaveCloudProject={handleSaveCloudProject}
             />
           )
         }
@@ -661,12 +637,7 @@ export default function App() {
 
       {/* ── Main: sidebar + timeline ── */}
       <div className="daw-main daw-tracks-area">
-        <div className={`track-sidebar${micTrackCue ? " needs-track-attention" : ""}`} data-tour="sidebar">
-          {micTrackCue && (
-            <div className="track-select-tooltip" role="status">
-              Select a track first
-            </div>
-          )}
+        <div className="track-sidebar" data-tour="sidebar">
           <div className="sidebar-ruler-placeholder">
             <button
               className="sidebar-add-btn"
@@ -736,16 +707,6 @@ export default function App() {
               </div>
             ))}
           </div>
-
-          {/* Custom sounds library — under track list */}
-          <Suspense fallback={null}>
-            <CustomSoundsPanel
-              sounds={customSoundsLib.sounds}
-              onAdd={handleAddLibrarySoundClick}
-              onRemove={customSoundsLib.remove}
-              onRename={customSoundsLib.rename}
-            />
-          </Suspense>
         </div>
 
         {/* ── Right: Timeline ── */}
@@ -778,7 +739,6 @@ export default function App() {
             onSeek={handleSeek}
             onUpdateTrack={actions.updateTrack}
             sidebarScrollRef={sidebarScrollRef}
-            onDropCustomSound={handleDropLibrarySoundOnTimeline}
             onFocusSignalPanel={focusSignalPanel}
           />
         </div>
@@ -876,11 +836,9 @@ export default function App() {
           <MicRecorderModal
             open
             themeDecade={prefs.decadeTheme}
-            selectedTrackId={state.selectedTrackId}
+            selectedTrackId={state.selectedTrackId || state.tracks[0]?.id}
             currentTime={state.currentTime}
             onClose={() => setShowMic(false)}
-            onSaveCustom={handleMicSaveCustom}
-            onNeedSelectTrack={flashTrackSidebarCue}
             onAddRecordedToTimeline={handleMicAddRecordedClip}
           />
         )}
@@ -895,6 +853,8 @@ export default function App() {
             decade={prefs.decadeTheme}
             audioBlob={recordedReview.blob}
             duration={recordedReview.duration}
+            recordingExtension={recordedReview.extension}
+            recordingMime={recordedReview.mime}
             user={user}
             onSaveDevice={handleReviewSaveDevice}
             onSaveCloud={handleReviewSaveCloud}

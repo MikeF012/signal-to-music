@@ -244,12 +244,6 @@
   cursor: text;
 }
 
-.formula-kb-hint {
-  font-size: 0.62rem;
-  color: var(--text-muted);
-  margin: 4px 0 2px;
-}
-
 .formula-input--touch {
   min-height: 3.2rem;
   line-height: 1.35;

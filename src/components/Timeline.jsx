@@ -1,24 +1,13 @@
-import React, {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import SignalBlock from "./SignalBlock";
 import { getPlayheadTime, enginePlaybackActive } from "../audio/toneEngine";
 import { TRACK_HEIGHT, RULER_HEIGHT, TIMELINE_DURATION } from "../utils/ranges";
 import { snapTimeToNearestBeat } from "../utils/gridSnap";
 
-// True when dragging a wave chip or a library sound onto a lane (dragover only exposes types[], not payloads).
+// True when dragging a wave chip onto a lane (dragover only exposes types[], not payloads).
 function laneDnDIndicatesDrop(dt) {
   if (!dt?.types) return false;
-  const types = Array.from(dt.types);
-  if (types.includes("wave-type")) return true;
-  if (types.includes("application/x-signal-sound")) return true;
-  return false;
+  return Array.from(dt.types).includes("wave-type");
 }
 // ── Ruler SVG ─────────────────────────────────────────────────────────────
 
@@ -50,14 +39,21 @@ function Ruler({ bpm, zoom, totalWidth }) {
     }
   }
 
+  const RH = RULER_HEIGHT; /* viewBox logical height — rendered size follows CSS --ruler-h */
+
   return (
-    <svg width={totalWidth} height={RULER_HEIGHT} style={{ display: "block" }}>
-      <rect width={totalWidth} height={RULER_HEIGHT} fill={bgFill} />
+    <svg
+      width={totalWidth}
+      style={{ display: "block", height: "var(--ruler-h, 32px)" }}
+      viewBox={`0 0 ${totalWidth} ${RH}`}
+      preserveAspectRatio="none"
+    >
+      <rect width={totalWidth} height={RH} fill={bgFill} />
       {ticks.map((t, i) => (
         <g key={i}>
           <line
-            x1={t.x.toFixed(1)} y1={t.isBar ? 2 : RULER_HEIGHT * 0.52}
-            x2={t.x.toFixed(1)} y2={RULER_HEIGHT}
+            x1={t.x.toFixed(1)} y1={t.isBar ? 2 : RH * 0.52}
+            x2={t.x.toFixed(1)} y2={RH}
             stroke={t.isBar ? barStroke : beatStroke}
             strokeWidth={1}
           />
@@ -105,7 +101,6 @@ const Timeline = forwardRef(function Timeline({
   onSeek,
   onUpdateTrack,
   sidebarScrollRef,
-  onDropCustomSound,
   onFocusSignalPanel,
 }, ref) {
   const lanesRef    = useRef(null);
@@ -117,6 +112,12 @@ const Timeline = forwardRef(function Timeline({
   const [laneMenu, setLaneMenu] = useState(null); // { x, y, trackId, time }
   const laneMenuRef = useRef(null);
   const [laneFlash, setLaneFlash] = useState(null); // { trackId, key }
+  const laneFlashKeyRef = useRef(0);
+
+  function nextLaneFlashKey() {
+    laneFlashKeyRef.current += 1;
+    return laneFlashKeyRef.current;
+  }
 
   const selectionKeys = useMemo(() => {
     const s = new Set();
@@ -156,7 +157,7 @@ const Timeline = forwardRef(function Timeline({
       return { trackId, time, rawTime };
     },
     flashLane(trackId) {
-      if (trackId) setLaneFlash({ trackId, key: Date.now() });
+      if (trackId) setLaneFlash({ trackId, key: nextLaneFlashKey() });
     },
   }), [tracks, zoom, bpm]);
 
@@ -313,33 +314,14 @@ const Timeline = forwardRef(function Timeline({
     }
   }
 
-  function laneDropSoundId(dt) {
-    let id = dt.getData("application/x-signal-sound").trim();
-    if (!id) {
-      const plain = dt.getData("text/plain");
-      if (plain?.startsWith("signal-sound:")) id = plain.slice("signal-sound:".length).trim();
-    }
-    return id || "";
-  }
-
   function handleLaneDrop(e, trackId) {
     e.currentTarget.classList.remove("drop-target");
-    const soundId = laneDropSoundId(e.dataTransfer);
 
     const lanesEl = lanesRef.current;
     const rect    = lanesEl.getBoundingClientRect();
     const x       = e.clientX - rect.left + lanesEl.scrollLeft;
     const raw     = Math.max(0, x / zoom);
     const dropTime = snapTimeToNearestBeat(raw, bpm);
-
-    if (soundId) {
-      e.preventDefault();
-      onClearBlockSelection?.();
-      onSelectTrack(trackId);
-      onDropCustomSound?.(trackId, soundId, dropTime);
-      setLaneFlash({ trackId, key: Date.now() });
-      return;
-    }
 
     const waveType = e.dataTransfer.getData("wave-type");
     if (!waveType) return;
@@ -354,7 +336,7 @@ const Timeline = forwardRef(function Timeline({
         ? { waveform: waveType, customFormula: customFormula }
         : { waveform: waveType };
     onUpdateTrack?.(trackId, formulaPatch);
-    setLaneFlash({ trackId, key: Date.now() });
+    setLaneFlash({ trackId, key: nextLaneFlashKey() });
   }
 
   // ── Cross-track drag (global pointermove / pointerup) ────────────────

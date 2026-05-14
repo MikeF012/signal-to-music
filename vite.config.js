@@ -2,11 +2,13 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { visualizer } from 'rollup-plugin-visualizer'
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [
     react(),
-    // Generates dist/stats.html — open after build to see bundle breakdown
-    visualizer({ filename: 'dist/stats.html', open: false, gzipSize: true }),
+    // Bundle analyzer only runs on production build — keeps `vite` dev startup light
+    ...(command === 'build'
+      ? [visualizer({ filename: 'dist/stats.html', open: false, gzipSize: true })]
+      : []),
   ],
   build: {
     rollupOptions: {
@@ -24,4 +26,8 @@ export default defineConfig({
     },
     chunkSizeWarningLimit: 600,
   },
-})
+  server: {
+    port: 5173,
+    strictPort: false,
+  },
+}))

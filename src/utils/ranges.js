@@ -7,9 +7,11 @@ export const TRACK_COLORS = [
   "#60b840",   // lime
   "#30a8e8",   // sky
   "#e8d030",   // gold
+  "#58c8c8",   // teal
+  "#e070b8",   // rose
 ];
 
-export const MAX_TRACKS = 8;
+export const MAX_TRACKS = 10;
 export const DEFAULT_BPM = 120;
 export const DEFAULT_ZOOM = 80;           // px per second
 export const TIMELINE_DURATION = 64;      // seconds shown on timeline

@@ -1,24 +1,26 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-const MENU_WIDTH = 240;
-/** Above modals (900), tour (810), timeline menus (400); on par with theme picker */
+const MENU_WIDTH = 268;
+/** Above modals, tour, timeline menus */
 const MENU_Z = 10050;
 
 function getInitials(name, email) {
   const source = (name && name.trim()) || (email && email.split("@")[0]) || "?";
-  const parts  = source.trim().split(/\s+/).slice(0, 2);
-  const ini    = parts.map((p) => p[0]).join("");
+  const parts = source.trim().split(/\s+/).slice(0, 2);
+  const ini = parts.map((p) => p[0]).join("");
   return ini.toUpperCase();
 }
 
-// Stable color from a string for the avatar background
 function colorFor(seed = "guest") {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
-  // Bias to warm hues to match the app palette
-  const hue = ((h % 60) + 360) % 60 + 20; // 20–80
+  const hue = ((h % 60) + 360) % 60 + 20;
   return `hsl(${hue}, 65%, 45%)`;
+}
+
+function SectionTitle({ children }) {
+  return <div className="avatar-menu-section" role="presentation">{children}</div>;
 }
 
 export default function AvatarMenu({
@@ -29,25 +31,29 @@ export default function AvatarMenu({
   onOpenSongs,
   onSignIn,
   onSignOut,
+  onOpenPresets,
+  onExportProjectJson,
+  onImportProject,
+  onSaveCloudProject,
+  userSignedIn,
 }) {
-  const [open, setOpen]     = useState(false);
+  const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
-  const wrapRef   = useRef(null);
+  const wrapRef = useRef(null);
   const buttonRef = useRef(null);
-  const menuRef   = useRef(null);
+  const menuRef = useRef(null);
 
   function updateMenuPosition() {
     const btn = buttonRef.current;
     if (!btn) return;
-    const b   = btn.getBoundingClientRect();
+    const b = btn.getBoundingClientRect();
     const margin = 16;
     let left = b.right - MENU_WIDTH;
     if (left < margin) left = margin;
-    if (left + MENU_WIDTH > window.innerWidth - margin) {
+    if (left + MENU_WIDTH > window.innerWidth - margin)
       left = Math.max(margin, window.innerWidth - margin - MENU_WIDTH);
-    }
     const gap = 8;
-    let top   = b.bottom + gap;
+    let top = b.bottom + gap;
     const menuEl = menuRef.current;
     const mh = menuEl?.offsetHeight ?? 0;
     if (mh > 0 && top + mh > window.innerHeight - margin) {
@@ -89,35 +95,87 @@ export default function AvatarMenu({
     };
   }, [open]);
 
-  if (!user) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <button
-          className="hw-btn hw-btn-icon"
-          onClick={onOpenSettings}
-          title="Settings — appearance, audio, and more"
-          style={{ fontSize: "1rem" }}
-        >
-          ⚙
-        </button>
-        <button
-          className="hw-btn hw-btn-sm"
-          onClick={onSignIn}
-          title="Sign in to save and sync your projects"
-        >
-          ☁ Sign In
-        </button>
-      </div>
-    );
-  }
-
-  const initials = getInitials(displayName, user.email);
-  const bg       = colorFor(displayName || user.email || "u");
-
   function pick(fn) {
     setOpen(false);
     fn?.();
   }
+
+  const guestBg = colorFor("guest");
+
+  const projectMenuSection = (
+    <>
+      <SectionTitle>Project</SectionTitle>
+      <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onExportProjectJson)}>
+        <span className="avatar-menu-icon">⇩</span> Export JSON…
+      </button>
+      <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onImportProject)}>
+        <span className="avatar-menu-icon">⇧</span> Import JSON…
+      </button>
+      <button
+        type="button"
+        className="avatar-menu-item"
+        role="menuitem"
+        disabled={!userSignedIn}
+        title={!userSignedIn ? "Sign in to sync to Supabase Cloud" : ""}
+        onClick={() => {
+          if (!userSignedIn) return;
+          pick(onSaveCloudProject);
+        }}
+      >
+        <span className="avatar-menu-icon">☁</span> Save to Cloud
+      </button>
+      <div className="avatar-menu-divider" />
+      <SectionTitle>Presets</SectionTitle>
+      <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onOpenPresets)}>
+        <span className="avatar-menu-icon">☰</span> Preset library
+      </button>
+      {userSignedIn ? (
+        <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onOpenSongs)}>
+          <span className="avatar-menu-icon">♪</span> My Saved Songs
+        </button>
+      ) : (
+        <>
+          <div className="avatar-menu-divider" />
+          <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onOpenSettings)}>
+            <span className="avatar-menu-icon">⚙</span> Settings
+          </button>
+          <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onSignIn)}>
+            <span className="avatar-menu-icon">↪</span> Sign In
+          </button>
+        </>
+      )}
+    </>
+  );
+
+  const menuBody = user ? (
+    <>
+      <div className="avatar-menu-header">
+        <div className="avatar-menu-name">{displayName || user.email.split("@")[0]}</div>
+        <div className="avatar-menu-email" title={user.email}>{user.email}</div>
+      </div>
+      {projectMenuSection}
+      <div className="avatar-menu-divider" />
+      <SectionTitle>Account</SectionTitle>
+      <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onOpenAccount)}>
+        <span className="avatar-menu-icon">👤</span> My Account
+      </button>
+      <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onOpenSettings)}>
+        <span className="avatar-menu-icon">⚙</span> Settings
+      </button>
+      <div className="avatar-menu-divider" />
+      <button type="button" className="avatar-menu-item danger" role="menuitem" onClick={() => pick(onSignOut)}>
+        <span className="avatar-menu-icon">⏻</span> Sign Out
+      </button>
+    </>
+  ) : (
+    <>
+      <div className="avatar-menu-header">
+        <div className="avatar-menu-name">Local session</div>
+        <div className="avatar-menu-email">Not signed in</div>
+      </div>
+      {projectMenuSection}
+    </>
+  );
 
   const menu = open ? (
     <div
@@ -126,31 +184,13 @@ export default function AvatarMenu({
       role="menu"
       style={{
         position: "fixed",
-        top:      menuPos.top,
-        left:     menuPos.left,
-        width:    MENU_WIDTH,
-        zIndex:   MENU_Z,
+        top: menuPos.top,
+        left: menuPos.left,
+        width: MENU_WIDTH,
+        zIndex: MENU_Z,
       }}
     >
-      <div className="avatar-menu-header">
-        <div className="avatar-menu-name">
-          {displayName || user.email.split("@")[0]}
-        </div>
-        <div className="avatar-menu-email" title={user.email}>{user.email}</div>
-      </div>
-      <button className="avatar-menu-item" role="menuitem" onClick={() => pick(onOpenAccount)}>
-        <span className="avatar-menu-icon">👤</span> My Account
-      </button>
-      <button className="avatar-menu-item" role="menuitem" onClick={() => pick(onOpenSettings)}>
-        <span className="avatar-menu-icon">⚙</span> Settings
-      </button>
-      <button className="avatar-menu-item" role="menuitem" onClick={() => pick(onOpenSongs)}>
-        <span className="avatar-menu-icon">♪</span> My Saved Songs
-      </button>
-      <div className="avatar-menu-divider" />
-      <button className="avatar-menu-item danger" role="menuitem" onClick={() => pick(onSignOut)}>
-        <span className="avatar-menu-icon">⏻</span> Sign Out
-      </button>
+      {menuBody}
     </div>
   ) : null;
 
@@ -162,12 +202,12 @@ export default function AvatarMenu({
           type="button"
           className="avatar-btn"
           onClick={() => setOpen((v) => !v)}
-          style={{ background: bg }}
-          title={`Signed in as ${displayName || user.email}`}
+          style={{ background: user ? colorFor(displayName || user.email || "u") : guestBg }}
+          title={user ? `Signed in as ${displayName || user.email}` : "Projects, presets & account"}
           aria-haspopup="menu"
           aria-expanded={open}
         >
-          <span className="avatar-initials">{initials}</span>
+          <span className="avatar-initials">{user ? getInitials(displayName, user.email) : "☰"}</span>
         </button>
       </div>
 

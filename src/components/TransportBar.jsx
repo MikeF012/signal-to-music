@@ -1,15 +1,12 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AppearancePicker from "./AppearancePicker";
 import {
-  TransportFolder,
-  TransportHamburger,
   TransportLoop,
   TransportMetronome,
   TransportMic,
   TransportPause,
   TransportPlay,
   TransportRecord,
-  TransportSaveDisk,
   TransportSkipEnd,
   TransportSkipStart,
   TransportStop,
@@ -32,7 +29,6 @@ export default function TransportBar({
   isRecording,
   bpm,
   masterVolume,
-  zoom,
   currentTime,
   loopActive,
   metronomActive,
@@ -49,26 +45,29 @@ export default function TransportBar({
   onLoopToggle,
   onMetronomToggle,
   onProjectNameChange,
-  onOpenPresets,
   onOpenMic,
-  onOpenProject,
-  onSaveProject,
-  rightSlot,           // <AvatarMenu /> renders here
-  currentDecade,       // "80s" | "90s-2000s" | "2010s"
+  rightSlot,
+  currentDecade,
   onDecadeChange,
 }) {
   const [bpmVal, setBpmVal] = useState(String(bpm));
   const [projVal, setProjVal] = useState(projectName ?? "untitled");
 
-  const prevBpm  = useRef(bpm);
+  const prevBpm = useRef(bpm);
   const prevProj = useRef(projectName);
 
   useEffect(() => {
-    if (bpm !== prevBpm.current) { setBpmVal(String(bpm)); prevBpm.current = bpm; }
+    if (bpm !== prevBpm.current) {
+      setBpmVal(String(bpm));
+      prevBpm.current = bpm;
+    }
   }, [bpm]);
 
   useEffect(() => {
-    if (projectName !== prevProj.current) { setProjVal(projectName); prevProj.current = projectName; }
+    if (projectName !== prevProj.current) {
+      setProjVal(projectName);
+      prevProj.current = projectName;
+    }
   }, [projectName]);
 
   function commitBpm() {
@@ -83,7 +82,6 @@ export default function TransportBar({
 
   return (
     <div className="transport-bar" data-tour="transport">
-      {/* ── Playback controls ── */}
       <div className="transport-btn-group">
         <button
           className="hw-btn hw-btn-icon"
@@ -105,7 +103,6 @@ export default function TransportBar({
             : <TransportPlay className="transport-glyph" />}
         </button>
 
-        {/* Dedicated stop button — square */}
         <button
           className="hw-btn hw-btn-icon transport-stop-btn"
           onClick={onStop}
@@ -118,7 +115,7 @@ export default function TransportBar({
         <button
           className={`hw-btn hw-btn-icon${isRecording ? " danger" : ""}`}
           onClick={onRecord}
-          title={isRecording ? "Stop recording & export WAV" : "Record — plays count-in first"}
+          title={isRecording ? "Stop recording — export performance (MP4/WebM/WAV)" : "Record — stops as performance file"}
           style={{ position: "relative" }}
           type="button"
         >
@@ -147,12 +144,10 @@ export default function TransportBar({
 
       <div className="transport-divider" />
 
-      {/* ── Time display ── */}
       <span className="transport-time-display" title="Playhead position">{formatTime(currentTime)}</span>
 
       <div className="transport-divider" />
 
-      {/* ── Loop + Metronome ── */}
       <div className="transport-btn-group">
         <button
           className={`hw-btn hw-btn-sm transport-labelled-btn${loopActive ? " active" : ""}`}
@@ -177,11 +172,11 @@ export default function TransportBar({
 
       <div className="transport-divider" />
 
-      {/* ── BPM ── */}
       <div className="transport-group">
         <label className="transport-label">BPM</label>
         <div className="bpm-wrap">
           <button
+            type="button"
             className="hw-btn bpm-stepper-btn"
             onClick={() => { const v = Math.max(40, bpm - 1); onBpmChange(v); setBpmVal(String(v)); }}
             title="Decrease BPM"
@@ -198,6 +193,7 @@ export default function TransportBar({
             title="Beats per minute (40 – 240)"
           />
           <button
+            type="button"
             className="hw-btn bpm-stepper-btn"
             onClick={() => { const v = Math.min(240, bpm + 1); onBpmChange(v); setBpmVal(String(v)); }}
             title="Increase BPM"
@@ -207,7 +203,6 @@ export default function TransportBar({
 
       <div className="transport-divider" />
 
-      {/* ── Master volume slider ── */}
       <div className="transport-vol-wrap" title="Master volume">
         <label className="transport-label">Vol</label>
         <div className="transport-vol-slider-row">
@@ -226,18 +221,16 @@ export default function TransportBar({
 
       <div className="transport-divider" />
 
-      {/* ── Zoom ── */}
       <div className="transport-group">
         <label className="transport-label">Zoom</label>
         <div style={{ display: "flex", gap: 4 }}>
-          <button className="hw-btn hw-btn-sm" onClick={onZoomOut} title="Zoom out (timeline)">−</button>
-          <button className="hw-btn hw-btn-sm" onClick={onZoomIn}  title="Zoom in (timeline)">+</button>
+          <button type="button" className="hw-btn hw-btn-sm" onClick={onZoomOut} title="Zoom out (timeline)">−</button>
+          <button type="button" className="hw-btn hw-btn-sm" onClick={onZoomIn} title="Zoom in (timeline)">+</button>
         </div>
       </div>
 
       <div className="transport-divider" />
 
-      {/* ── Project name ── */}
       <input
         type="text"
         className="project-name-input"
@@ -246,55 +239,26 @@ export default function TransportBar({
         onBlur={commitProj}
         onKeyDown={(e) => { if (e.key === "Enter") { commitProj(); e.target.blur(); } }}
         placeholder="project name"
-        title="Project name (used in exported filename)"
+        title="Project name — export/file names via Profile ▸ Project menu"
         maxLength={40}
       />
 
       <div className="transport-divider" />
 
-      {/* ── Mic / Open / Save ── */}
       <div className="transport-btn-group">
         <button
+          type="button"
           className="hw-btn hw-btn-sm transport-labelled-btn"
           onClick={onOpenMic}
           title="Record from microphone — analyzes the math of your sound"
-          type="button"
         >
           <TransportMic className="transport-glyph transport-glyph--sm" />
           <span>Mic</span>
         </button>
-        <button
-          className="hw-btn hw-btn-sm transport-labelled-btn"
-          onClick={onOpenProject}
-          title="Open a saved .signal project file"
-          type="button"
-        >
-          <TransportFolder className="transport-glyph transport-glyph--sm" />
-          <span>Open</span>
-        </button>
-        <button
-          className="hw-btn hw-btn-sm transport-labelled-btn"
-          onClick={onSaveProject}
-          title="Save this project as a file or to the cloud"
-          type="button"
-        >
-          <TransportSaveDisk className="transport-glyph transport-glyph--sm" />
-          <span>Save</span>
-        </button>
       </div>
 
-      {/* ── Appearances + Presets + account — margin-left:auto keeps cluster on the right ── */}
       <div className="transport-bar-end">
         <AppearancePicker activeTheme={currentDecade} onThemeChange={onDecadeChange} />
-        <button
-          className="hw-btn hw-btn-sm transport-labelled-btn"
-          onClick={onOpenPresets}
-          title="Open preset library"
-          type="button"
-        >
-          <TransportHamburger className="transport-glyph transport-glyph--sm" />
-          <span>Presets</span>
-        </button>
         <div className="transport-avatar-slot">{rightSlot}</div>
       </div>
     </div>
