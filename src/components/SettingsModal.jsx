@@ -35,6 +35,7 @@ export default function SettingsModal({
   onClearLocalCache,
   onReplayTutorialQuick,
   onReplayTutorialFull,
+  onResetFirstTutorialFlag,
 }) {
   const [section, setSection] = useState("account");
   const [busy,    setBusy]    = useState(false);
@@ -245,6 +246,22 @@ export default function SettingsModal({
               >
                 Full Tour
               </button>
+
+              {onResetFirstTutorialFlag && (
+                <>
+                  <p className="settings-fine" style={{ marginTop: "16px", marginBottom: "8px" }}>
+                    Testing: clears the first-visit flag in this browser. The introduction opens again immediately;
+                    closing it saves the flag (same as a natural first visit).
+                  </p>
+                  <button
+                    type="button"
+                    className="hw-btn hw-btn-sm"
+                    onClick={onResetFirstTutorialFlag}
+                  >
+                    Reset first-visit tutorial
+                  </button>
+                </>
+              )}
             </>
           )}
 

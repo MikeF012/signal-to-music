@@ -1,4 +1,8 @@
-/* Touch / hybrid — applied with main app.css (html.touch-device from TouchUiRoot) */
+/*
+  Touch polish + scoped mobile density.
+  — Global: touch-action, overscroll, haptics styling, overlays.
+  — Min tap targets / compact padding: only inside @media (max-width: 768px).
+*/
 
 .touch-device .daw-shell .timeline-area,
 .touch-device .daw-shell .timeline-root,
@@ -17,8 +21,9 @@
 .touch-device .daw-shell .ms-btn:not(:disabled):active,
 .touch-device .daw-shell .sidebar-add-btn:not(:disabled):active,
 .touch-device .daw-shell .formula-ref-btn:not(:disabled):active,
-.touch-device .daw-shell .formula-toolbar-key:not(:disabled):active,
 .touch-device .daw-shell .formula-quick-chip:not(:disabled):active,
+.touch-device .daw-shell .formula-keypad-btn:not(:disabled):active,
+.touch-device .daw-shell .formula-keypad-action:not(:disabled):active,
 .touch-device .daw-shell .bottom-sheet-btn:not(:disabled):active,
 .touch-device .daw-shell .track-del-btn:not(:disabled):active,
 .touch-device .daw-shell .signal-drag-hint-first-dismiss:not(:disabled):active {
@@ -26,25 +31,33 @@
   transition: transform 80ms ease-out;
 }
 
-.touch-device .daw-shell .wave-btn-tall {
-  min-height: 48px !important;
-  min-width: 44px;
-}
+/* Comfortable tap zones on phones only — avoids stretching desktop hybrids */
+@media (max-width: 768px) {
+  .touch-device .daw-shell .wave-btn-tall {
+    min-height: 48px !important;
+    min-width: 44px;
+  }
 
-.touch-device .daw-shell .hw-btn {
-  min-width: 44px;
-  min-height: 44px;
-}
+  .touch-device .daw-shell .hw-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
 
-.touch-device .daw-shell .ms-btn {
-  min-width: 44px;
-  min-height: 44px;
-}
+  .touch-device .daw-shell .ms-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
 
-.touch-device .daw-shell .formula-ref-btn {
-  min-height: 44px;
-  min-width: 44px;
-  padding: 0 12px;
+  .touch-device .daw-shell .formula-ref-btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 12px;
+  }
+
+  /* Compact narrow phones: keypad buttons slightly shorter than 44 guideline where needed */
+  .touch-device .daw-shell .formula-keypad-btn--digit {
+    min-height: 40px;
+  }
 }
 
 .synth-touch-drag-chip {
@@ -226,6 +239,17 @@
   cursor: not-allowed;
 }
 
+/* Touch formula field: OS keyboard suppressed in JS — subtle affordance */
+.formula-input--no-os-kb {
+  cursor: text;
+}
+
+.formula-kb-hint {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  margin: 4px 0 2px;
+}
+
 .formula-input--touch {
   min-height: 3.2rem;
   line-height: 1.35;
@@ -273,61 +297,4 @@
 
 .formula-live-status.bad .formula-live-err {
   color: #ff8a8a;
-}
-
-.formula-keyboard-toolbar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  z-index: 9600;
-  background: linear-gradient(180deg, #22202a, #141218);
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 8px 8px 10px;
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.45);
-}
-
-.formula-toolbar-chip-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.formula-toolbar-key {
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0 8px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.06);
-  color: #f5f0e8;
-  font-family: var(--font-mono, monospace);
-  font-size: 0.75rem;
-}
-
-.formula-toolbar-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.formula-toolbar-clear {
-  min-height: 48px;
-  padding: 0 16px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: transparent;
-  color: var(--text-cream, #f0e8e0);
-}
-
-.formula-toolbar-done {
-  min-height: 48px;
-  padding: 0 22px;
-  border-radius: 10px;
-  border: none;
-  background: linear-gradient(180deg, #e8a030, #c07018);
-  color: #1a0a08;
-  font-weight: 700;
-  font-size: 0.95rem;
 }

@@ -61,7 +61,8 @@ html {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
-  /* Prevent 100vw scrollbar gutter from causing horizontal scroll */
+  min-height: 100%;
+  min-height: 100dvh;
 }
 
 body {
@@ -69,10 +70,16 @@ body {
   max-width: 100%;
   overflow-x: hidden;
   min-height: 100%;
+  min-height: 100dvh;
   font-family: var(--font-body);
   font-size: 13px;
   background: var(--bg-body);
   color: var(--text-cream);
+}
+
+#root {
+  min-height: 100%;
+  min-height: 100dvh;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -777,6 +784,112 @@ body {
 }
 
 .formula-error { font-size: .7rem; color: #ff8aad; margin-top: 2px; }
+
+/* Custom formula keypad (desktop + mobile; mobile uses readOnly + no OS keyboard) */
+.formula-keypad-shell {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.formula-custom-keypad {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.formula-custom-keypad--compact {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.formula-keypad-digits {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.formula-keypad-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.formula-keypad-row--bottom {
+  margin-bottom: 0;
+}
+
+.formula-keypad-functions {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.formula-keypad-btn {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border-hi);
+  background: var(--bg-btn);
+  color: var(--text-cream);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.formula-keypad-btn--digit {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.formula-keypad-btn--fn {
+  font-size: 0.68rem;
+  min-width: 38px;
+  padding: 0 6px;
+}
+
+.formula-keypad-btn--wide {
+  flex: 1;
+  min-width: 52px;
+}
+
+.formula-keypad-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.formula-keypad-action {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-hi);
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.formula-keypad-action--muted {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.formula-keypad-action--primary {
+  background: linear-gradient(180deg, var(--amber), #b07020);
+  color: #1a0a08;
+  border-color: rgba(232, 160, 48, 0.6);
+  font-weight: 800;
+}
 
 /* Formula reference toggle */
 .formula-ref-btn {
@@ -5299,10 +5412,85 @@ body {
 ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
   :root {
-    --vis-h:       100px;
-    --transport-h: 52px;
+    --vis-h:       88px;
+    --transport-h: 48px;
+    --track-h:     58px;
+    --ruler-h:     26px;
     --signal-h:    auto;
     --sidebar-w:   100%;
+  }
+
+  .master-visualizer {
+    height: var(--vis-h);
+  }
+
+  .transport-bar {
+    padding: 4px 8px;
+    gap: 6px;
+    min-height: 0;
+    flex-wrap: wrap;
+  }
+
+  .hw-btn {
+    padding: 6px 8px;
+    min-height: 0;
+  }
+
+  .hw-btn-icon {
+    padding: 6px;
+  }
+
+  .track-header-row {
+    height: auto;
+    min-height: var(--track-h);
+    padding: 5px 8px 6px 10px;
+    gap: 3px;
+  }
+
+  .sidebar-ruler-placeholder {
+    height: var(--ruler-h);
+    padding: 0 8px;
+    gap: 4px;
+  }
+
+  .sidebar-add-btn {
+    padding: 2px 8px;
+    font-size: .52rem;
+  }
+
+  .timeline-root {
+    min-height: 240px;
+  }
+
+  .signal-body {
+    padding: 6px 8px !important;
+  }
+
+  .signal-waveform-block {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .formula-wrap-full .formula-input {
+    height: auto;
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 0.94rem;
+  }
+
+  .formula-keypad-btn {
+    min-width: 36px;
+    min-height: 38px;
+    font-size: 0.74rem;
+  }
+
+  .formula-keypad-btn--fn {
+    min-width: 34px;
+    font-size: 0.62rem;
+  }
+
+  .track-vol-row {
+    gap: 4px;
   }
 
   /* Scrollable shell on short phones — flex children still get min sizes for timeline */
@@ -5346,7 +5534,6 @@ body {
   }
 
   .signal-track-ident { display: none; }
-  .signal-body { padding: 10px; }
 
   /* Timeline + lanes — was display:none which hid all track blocks on phones */
   .timeline-root {

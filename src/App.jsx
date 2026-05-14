@@ -20,6 +20,7 @@ import {
   estimateProjectSizeBytes, getProjectDuration,
 } from "./utils/projectFile";
 import { readLocalSongs, writeLocalSongs } from "./utils/localSongs";
+import { hasCompletedFirstTutorial, markFirstTutorialSeen, resetFirstTutorialFlagForTesting } from "./utils/firstVisitTutorial";
 import { supabaseEnabled } from "./lib/supabase";
 
 // ── Always-visible core UI (eager) ────────────────────────────────────────
@@ -146,16 +147,15 @@ export default function App() {
     else                 setMetronome(false, state.bpm);
   }, [state.metronomActive, state.bpm, state.isPlaying]);
 
-  // ── First-run tutorial ───────────────────────────────────────────────
+  // ── First-run tutorial (localStorage; see utils/firstVisitTutorial)
   useEffect(() => {
-    if (prefs.showTutorial) {
-      const t = setTimeout(() => {
-        setTourVariant("choose");
-        setShowTour(true);
-      }, 600);
-      return () => clearTimeout(t);
-    }
-  }, [prefs.showTutorial]);
+    if (hasCompletedFirstTutorial()) return;
+    const t = setTimeout(() => {
+      setTourVariant("choose");
+      setShowTour(true);
+    }, 600);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -840,6 +840,12 @@ export default function App() {
               setTourVariant("full");
               setShowTour(true);
             }}
+            onResetFirstTutorialFlag={() => {
+              resetFirstTutorialFlagForTesting();
+              setShowSettings(false);
+              setTourVariant("choose");
+              setShowTour(true);
+            }}
           />
         )}
       </Suspense>
@@ -933,6 +939,7 @@ export default function App() {
             open
             variant={tourVariant}
             onClose={() => {
+              markFirstTutorialSeen();
               setShowTour(false);
               setTourVariant("choose");
               setPrefs({ showTutorial: false });

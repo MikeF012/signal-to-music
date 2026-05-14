@@ -1,42 +1,30 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { compileCustomFormula } from "../math/waveMath";
-
-const DESKTOP_PANEL_KEYS = [
-  { label: "(", value: "(" },
-  { label: ")", value: ")" },
-  { label: "^", value: "^" },
-  { label: "π", value: "π" },
-  { label: "+", value: "+" },
-  { label: "-", value: "-" },
-  { label: "×", value: "*" },
-  { label: "÷", value: "/" },
-  { label: "sin", value: "sin(" },
-  { label: "cos", value: "cos(" },
-  { label: "tan", value: "tan(" },
-];
-
-const MOBILE_SYMBOLS_ROW1 = [
-  { label: "sin(", value: "sin(" },
-  { label: "cos(", value: "cos(" },
-  { label: "tan(", value: "tan(" },
-  { label: "π", value: "π" },
-  { label: "×", value: "*" },
-  { label: "÷", value: "/" },
-  { label: "+", value: "+" },
-  { label: "-", value: "-" },
-  { label: "(", value: "(" },
-  { label: ")", value: ")" },
-];
+import FormulaKeypad from "./FormulaKeypad";
 
 const INLINE_EXAMPLES = ["sin(t)", "cos(2t)", "sin(t)+cos(2t)"];
+const MOBILE_FORMULA_MQ = "(max-width: 768px)";
 
-export default function NaturalMathInput({ value, onChange, error, onCommit, touchUi = false }) {
+/** Narrow viewports match compact mobile CSS; avoids OS keyboard jank — same breakpoint as TrackEditor/mobile layout. */
+function useFormulaMobileViewport() {
+  const [narrow, setNarrow] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia(MOBILE_FORMULA_MQ).matches,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_FORMULA_MQ);
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  return narrow;
+}
+
+export default function NaturalMathInput({ value, onChange, error, onCommit }) {
   const inputRef = useRef(null);
-  const toolbarRef = useRef(null);
-
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-  const closeTimeoutRef = useRef(null);
-  const [toolbarBottomPx, setToolbarBottomPx] = useState(0);
+  const narrowVp = useFormulaMobileViewport();
 
   const liveEval = useMemo(() => compileCustomFormula(value.trim() || ""),
     [value]);
@@ -44,60 +32,14 @@ export default function NaturalMathInput({ value, onChange, error, onCommit, tou
   const combinedError = error || liveEval.error;
   const isValidFormula = Boolean(value.trim() && !combinedError);
 
-  function clearPendingClose() {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-  }
-
-  function openKeyboard() {
-    clearPendingClose();
-    setIsKeyboardOpen(true);
-    if (!touchUi) return;
-    requestAnimationFrame(() => {
-      inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    });
-  }
-
-  function scheduleClose() {
-    if (touchUi) return;
-    clearPendingClose();
-    closeTimeoutRef.current = setTimeout(() => {
-      setIsKeyboardOpen(false);
-    }, 120);
-  }
-
-  const positionMobileToolbar = useCallback(() => {
-    if (!touchUi || !toolbarRef.current) return;
-    const vv = window.visualViewport;
-    if (!vv) {
-      setToolbarBottomPx(0);
-      return;
-    }
-    const gap = 8;
-    const inset = Math.max(0, window.innerHeight - (vv.offsetTop + vv.height));
-    setToolbarBottomPx(Math.max(inset + gap, 8));
-  }, [touchUi]);
-
-  useEffect(() => {
-    if (!touchUi || !isKeyboardOpen) return undefined;
-    const vv = window.visualViewport;
-    if (!vv) return undefined;
-    positionMobileToolbar();
-    vv.addEventListener("resize", positionMobileToolbar);
-    vv.addEventListener("scroll", positionMobileToolbar);
-    return () => {
-      vv.removeEventListener("resize", positionMobileToolbar);
-      vv.removeEventListener("scroll", positionMobileToolbar);
-    };
-  }, [touchUi, isKeyboardOpen, positionMobileToolbar]);
+  /** Keep synthetic caret position after controlled updates. */
+  const moveCursor = useRef(null);
 
   function insertAtCursor(rawToken) {
     const element = inputRef.current;
     if (!element) return;
 
-    const token = rawToken === "π" ? "pi" : rawToken;
+    const token = rawToken === "π" ? "pi" : rawToken === "−" ? "-" : rawToken;
     const current = element.value;
     const start = element.selectionStart ?? current.length;
     const end = element.selectionEnd ?? current.length;
@@ -112,67 +54,136 @@ export default function NaturalMathInput({ value, onChange, error, onCommit, tou
     }
 
     onChange(nextValue);
+    moveCursor.current = nextCursor;
+  }
 
+  function handleBackspaceAtCursor() {
+    const element = inputRef.current;
+    if (!element) return;
+    const current = element.value;
+    const start = element.selectionStart ?? 0;
+    const end = element.selectionEnd ?? 0;
+    let next = current;
+    let nextCursor = start;
+
+    if (end > start) {
+      next = current.slice(0, start) + current.slice(end);
+      nextCursor = start;
+    } else if (start > 0) {
+      next = current.slice(0, start - 1) + current.slice(end);
+      nextCursor = start - 1;
+    }
+
+    if (next !== current) {
+      onChange(next);
+      moveCursor.current = nextCursor;
+    }
+  }
+
+  useEffect(() => {
+    if (moveCursor.current === null) return;
+    const element = inputRef.current;
+    const pos = moveCursor.current;
+    moveCursor.current = null;
+    if (!element) return;
     requestAnimationFrame(() => {
-      element.focus();
-      element.setSelectionRange(nextCursor, nextCursor);
+      try {
+        element.focus({ preventScroll: true });
+        element.setSelectionRange(pos, pos);
+      } catch {
+        /* noop */
+      }
     });
-  }
+  }, [value]);
 
-  function handleClearTouch() {
+  const handleClear = useCallback(() => {
     onChange("");
-    requestAnimationFrame(() => inputRef.current?.focus());
-  }
+    moveCursor.current = 0;
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (el) {
+        try {
+          el.focus({ preventScroll: true });
+          el.setSelectionRange(0, 0);
+        } catch { /* noop */ }
+      }
+    });
+  }, [onChange]);
 
-  function handleDoneTouch() {
+  const handleDoneTouch = useCallback(() => {
     if (onCommit) onCommit(inputRef.current?.value ?? "");
     inputRef.current?.blur();
-    setIsKeyboardOpen(false);
-  }
+  }, [onCommit]);
 
-  const InputTag = touchUi ? "textarea" : "input";
-  const editorClass = touchUi ? "formula-input formula-input--touch" : "formula-input";
+  const InputTag = narrowVp ? "textarea" : "input";
+  const editorClass = [
+    "formula-input",
+    narrowVp ? "formula-input--touch" : "",
+    narrowVp ? "formula-input--no-os-kb" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div className="natural-math-editor">
       <InputTag
         ref={inputRef}
         className={editorClass}
-        type={touchUi ? undefined : "text"}
-        rows={touchUi ? 2 : undefined}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        inputMode={touchUi ? "text" : undefined}
-        autoCapitalize={touchUi ? "off" : undefined}
+        readOnly={narrowVp}
+        inputMode={narrowVp ? "none" : undefined}
+        enterKeyHint={narrowVp ? "done" : undefined}
+        autoComplete="off"
+        autoCorrect="off"
         spellCheck={false}
-        autoCorrect={touchUi ? "off" : undefined}
+        type={narrowVp ? undefined : "text"}
+        rows={narrowVp ? 2 : undefined}
+        value={value}
+        onChange={narrowVp ? undefined : (e) => onChange(e.target.value)}
         onKeyDown={(e) => {
-          if (!touchUi && e.key === "Enter" && onCommit && !e.shiftKey) {
+          if (narrowVp) {
+            e.preventDefault();
+            return;
+          }
+          if (e.key === "Enter" && onCommit && !e.shiftKey) {
             e.preventDefault();
             onCommit(e.currentTarget.value);
           }
         }}
         onFocus={(e) => {
-          openKeyboard();
-          if (touchUi)
-            requestAnimationFrame(() =>
-              e.target.scrollIntoView({ behavior: "smooth", block: "center" }));
+          if (narrowVp) {
+            e.target.scrollIntoView({ behavior: "smooth", block: "center" });
+            try {
+              const len = value.length;
+              e.target.setSelectionRange(len, len);
+            } catch { /* noop */ }
+          }
         }}
-        onBlur={scheduleClose}
         placeholder="sin(t) + 0.5sin(2t)  or  sin(t)e^-4t"
-        title="Custom formula — use t as the variable."
+        title={
+          narrowVp
+            ? "Use the on-screen keypad — system keyboard is disabled to keep the layout stable."
+            : "Custom formula — type or use the keypad. Use t as the variable."
+        }
       />
 
-      {touchUi && (
+      {narrowVp && (
+        <p className="formula-kb-hint">Use the keypad below — no OS keyboard</p>
+      )}
+
+      {narrowVp && (
         <div className="formula-syntax-muted touch-only-formula-examples">
-          <span className="formula-syntax-muted-label">Examples — tap to insert</span>
+          <span className="formula-syntax-muted-label">Examples — tap</span>
           <div className="formula-quick-row">
             {INLINE_EXAMPLES.map((ex) => (
               <button
                 key={ex}
                 type="button"
                 className="formula-quick-chip"
-                onClick={() => onChange(ex)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onChange(ex);
+                  moveCursor.current = ex.length;
+                }}
               >
                 {ex}
               </button>
@@ -189,72 +200,53 @@ export default function NaturalMathInput({ value, onChange, error, onCommit, tou
         )}
       </div>
 
-      {!touchUi && isKeyboardOpen && (
-        <div
-          className="math-input-panel"
-          onMouseDown={(event) => {
-            event.preventDefault();
-            openKeyboard();
-          }}
-        >
-          <p className="math-input-panel-title">Essentials</p>
-          <div className="math-input-grid">
-            {DESKTOP_PANEL_KEYS.map((button) => (
-              <button
-                key={button.label}
-                type="button"
-                className="math-input-key"
-                onClick={() => insertAtCursor(button.value)}
-              >
-                {button.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {touchUi && isKeyboardOpen && (
-        <div
-          ref={toolbarRef}
-          className="formula-keyboard-toolbar"
-          style={{ bottom: toolbarBottomPx }}
-          data-formula-touch-toolbar="1"
-        >
-          <div className="formula-toolbar-chip-wrap">
-            {MOBILE_SYMBOLS_ROW1.map((btn) => (
-              <button
-                key={btn.label}
-                type="button"
-                className="formula-toolbar-key"
-                onMouseDown={(e) => { e.preventDefault(); }}
-                onClick={() => insertAtCursor(btn.value)}
-              >
-                {btn.label}
-              </button>
-            ))}
-          </div>
-          <div className="formula-toolbar-actions">
+      <div
+        className="formula-keypad-shell"
+        onMouseDown={(e) => {
+          if (!narrowVp) return;
+          if (e.target.closest("button,input,textarea")) return;
+          e.preventDefault();
+        }}
+      >
+        <FormulaKeypad
+          compact={narrowVp}
+          onInsert={(tok) => insertAtCursor(tok)}
+          onBackspace={handleBackspaceAtCursor}
+        />
+        <div className="formula-keypad-actions">
+          <button
+            type="button"
+            className="formula-keypad-action formula-keypad-action--muted"
+            onMouseDown={(e) => { e.preventDefault(); }}
+            onClick={handleClear}
+          >
+            Clear
+          </button>
+          {narrowVp ? (
             <button
               type="button"
-              className="formula-toolbar-clear"
-              onMouseDown={(e) => { e.preventDefault(); }}
-              onClick={handleClearTouch}
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              className="formula-toolbar-done"
+              className="formula-keypad-action formula-keypad-action--primary"
               onMouseDown={(e) => { e.preventDefault(); }}
               onClick={handleDoneTouch}
             >
               Done
             </button>
-          </div>
+          ) : (
+            onCommit && (
+              <button
+                type="button"
+                className="formula-keypad-action formula-keypad-action--primary"
+                onMouseDown={(e) => { e.preventDefault(); }}
+                onClick={() => onCommit(inputRef.current?.value ?? "")}
+              >
+                Apply
+              </button>
+            )
+          )}
         </div>
-      )}
+      </div>
 
-      {!touchUi && error && <p className="formula-error">{error}</p>}
+      {!narrowVp && error && <p className="formula-error">{error}</p>}
     </div>
   );
 }

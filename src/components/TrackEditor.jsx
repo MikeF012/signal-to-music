@@ -206,7 +206,6 @@ export default function TrackEditor({
             <div className="formula-wrap formula-wrap-full">
               <NaturalMathInput
                 value={track.customFormula}
-                touchUi={touchUi}
                 onChange={(v) => set("customFormula", v)}
                 error={track.waveform === "custom" ? (track.formulaError ?? "") : ""}
                 onCommit={(raw) => {
