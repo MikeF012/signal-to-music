@@ -1,7 +1,16 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import SignalBlock from "./SignalBlock";
 import { getPlayheadTime, enginePlaybackActive } from "../audio/toneEngine";
 import { TRACK_HEIGHT, RULER_HEIGHT, TIMELINE_DURATION } from "../utils/ranges";
+import { snapTimeToNearestBeat } from "../utils/gridSnap";
 
 // True when dragging a wave chip or a library sound onto a lane (dragover only exposes types[], not payloads).
 function laneDnDIndicatesDrop(dt) {
@@ -70,15 +79,16 @@ function Ruler({ bpm, zoom, totalWidth }) {
 
 // ── Timeline ──────────────────────────────────────────────────────────────
 
-export default function Timeline({
+const Timeline = forwardRef(function Timeline({
   tracks,
   bpm,
   zoom,
   isPlaying,
   currentTime,
   selectedTrackId,
-  selectedBlocks,     // [{ trackId, blockId }]
-  clipboard,          // { block } | null — for paste
+  selectedBlocks,
+  clipboard,
+  touchUi = false,
   onClearBlockSelection,
   onSelectTrack,
   onAddBlock,
@@ -89,23 +99,26 @@ export default function Timeline({
   onDuplicateBlock,
   onSplitBlock,
   onCopyBlock,
+  onCutBlock,
   onPasteBlock,
   onSelectBlock,
   onSeek,
   onUpdateTrack,
   sidebarScrollRef,
   onDropCustomSound,
-}) {
+  onFocusSignalPanel,
+}, ref) {
   const lanesRef    = useRef(null);
   const rulerRef    = useRef(null);
   const playheadRef = useRef(null);
   const syncing     = useRef(false);
 
   // Lane right-click paste menu
-  const [laneMenu, setLaneMenu] = React.useState(null); // { x, y, trackId, time }
+  const [laneMenu, setLaneMenu] = useState(null); // { x, y, trackId, time }
   const laneMenuRef = useRef(null);
+  const [laneFlash, setLaneFlash] = useState(null); // { trackId, key }
 
-  const selectionKeys = React.useMemo(() => {
+  const selectionKeys = useMemo(() => {
     const s = new Set();
     if (Array.isArray(selectedBlocks)) {
       for (const k of selectedBlocks) {
@@ -115,7 +128,39 @@ export default function Timeline({
     return s;
   }, [selectedBlocks]);
 
-  React.useEffect(() => {
+  useEffect(() => {
+    if (!laneFlash?.trackId) return undefined;
+    const tid = window.setTimeout(() => setLaneFlash(null), 420);
+    return () => window.clearTimeout(tid);
+  }, [laneFlash]);
+
+  useImperativeHandle(ref, () => ({
+    resolveDrop(clientX, clientY) {
+      const lanesEl = lanesRef.current;
+      if (!lanesEl) return null;
+      const rect = lanesEl.getBoundingClientRect();
+      if (
+        clientX < rect.left ||
+        clientX > rect.right ||
+        clientY < rect.top ||
+        clientY > rect.bottom
+      )
+        return null;
+      const x = clientX - rect.left + lanesEl.scrollLeft;
+      const y = clientY - rect.top + lanesEl.scrollTop;
+      const idx = Math.floor(y / TRACK_HEIGHT);
+      const trackId = tracks[idx]?.id ?? null;
+      if (!trackId) return null;
+      const rawTime = Math.max(0, x / zoom);
+      const time = snapTimeToNearestBeat(rawTime, bpm);
+      return { trackId, time, rawTime };
+    },
+    flashLane(trackId) {
+      if (trackId) setLaneFlash({ trackId, key: Date.now() });
+    },
+  }), [tracks, zoom, bpm]);
+
+  useEffect(() => {
     if (!laneMenu) return;
     function onDoc(e) {
       // Only close when clicking OUTSIDE the menu
@@ -245,7 +290,8 @@ export default function Timeline({
     const lanesEl = lanesRef.current;
     const rect    = lanesEl.getBoundingClientRect();
     const x       = e.clientX - rect.left + lanesEl.scrollLeft;
-    setLaneMenu({ x: e.clientX + 4, y: e.clientY + 4, trackId, time: x / zoom });
+    const laneT   = snapTimeToNearestBeat(Math.max(0, x / zoom), bpm);
+    setLaneMenu({ x: e.clientX + 4, y: e.clientY + 4, trackId, time: laneT });
   }
 
   // ── Wave-type drag-and-drop onto lanes ───────────────────────────────
@@ -283,13 +329,15 @@ export default function Timeline({
     const lanesEl = lanesRef.current;
     const rect    = lanesEl.getBoundingClientRect();
     const x       = e.clientX - rect.left + lanesEl.scrollLeft;
-    const dropTime = x / zoom;
+    const raw     = Math.max(0, x / zoom);
+    const dropTime = snapTimeToNearestBeat(raw, bpm);
 
     if (soundId) {
       e.preventDefault();
       onClearBlockSelection?.();
       onSelectTrack(trackId);
       onDropCustomSound?.(trackId, soundId, dropTime);
+      setLaneFlash({ trackId, key: Date.now() });
       return;
     }
 
@@ -306,6 +354,7 @@ export default function Timeline({
         ? { waveform: waveType, customFormula: customFormula }
         : { waveform: waveType };
     onUpdateTrack?.(trackId, formulaPatch);
+    setLaneFlash({ trackId, key: Date.now() });
   }
 
   // ── Cross-track drag (global pointermove / pointerup) ────────────────
@@ -404,6 +453,7 @@ export default function Timeline({
                 "timeline-lane",
                 track.id === selectedTrackId ? "selected" : "",
                 track.muted ? "muted" : "",
+                laneFlash?.trackId === track.id ? "lane-drop-flash" : "",
               ].join(" ").trim()}
               style={{ height: TRACK_HEIGHT, "--bar-px": `${barPx}px` }}
               onClick={(e) => handleLaneClick(e, track.id)}
@@ -419,6 +469,10 @@ export default function Timeline({
                   block={block}
                   track={track}
                   zoom={zoom}
+                  bpm={bpm}
+                  currentTime={currentTime}
+                  touchUi={touchUi}
+                  clipboard={clipboard}
                   isSelected={selectionKeys.has(`${track.id}:${block.id}`)}
                   onSelect={(shift) => onSelectBlock?.(track.id, block.id, shift)}
                   onMove={(bid, t)  => onMoveBlock(track.id, bid, t)}
@@ -427,6 +481,9 @@ export default function Timeline({
                   onDuplicate={(bid) => onDuplicateBlock?.(track.id, bid)}
                   onSplit={(bid, splitTime) => onSplitBlock?.(track.id, bid, splitTime)}
                   onCopy={(bid) => onCopyBlock?.(track.id, bid)}
+                  onCut={(bid) => onCutBlock?.(track.id, bid)}
+                  onPastePlayhead={() => onPasteBlock?.(track.id, currentTime)}
+                  onOpenProperties={() => onFocusSignalPanel?.(track.id)}
                   onDragStart={handleBlockDragStart}
                 />
               ))}
@@ -455,4 +512,6 @@ export default function Timeline({
       )}
     </div>
   );
-}
+});
+
+export default Timeline;

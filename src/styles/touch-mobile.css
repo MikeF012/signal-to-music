@@ -1,0 +1,333 @@
+/* Touch / hybrid — applied with main app.css (html.touch-device from TouchUiRoot) */
+
+.touch-device .daw-shell .timeline-area,
+.touch-device .daw-shell .timeline-root,
+.touch-device .daw-shell .lanes-scroll,
+.touch-device .daw-shell .signal-panel,
+.touch-device .daw-shell .transport-bar {
+  touch-action: manipulation;
+}
+
+.touch-device .daw-shell .lanes-scroll {
+  overscroll-behavior: contain;
+}
+
+.touch-device .daw-shell .hw-btn:not(:disabled):active,
+.touch-device .daw-shell .wave-btn:not(:disabled):active,
+.touch-device .daw-shell .ms-btn:not(:disabled):active,
+.touch-device .daw-shell .sidebar-add-btn:not(:disabled):active,
+.touch-device .daw-shell .formula-ref-btn:not(:disabled):active,
+.touch-device .daw-shell .formula-toolbar-key:not(:disabled):active,
+.touch-device .daw-shell .formula-quick-chip:not(:disabled):active,
+.touch-device .daw-shell .bottom-sheet-btn:not(:disabled):active,
+.touch-device .daw-shell .track-del-btn:not(:disabled):active,
+.touch-device .daw-shell .signal-drag-hint-first-dismiss:not(:disabled):active {
+  transform: scale(0.95);
+  transition: transform 80ms ease-out;
+}
+
+.touch-device .daw-shell .wave-btn-tall {
+  min-height: 48px !important;
+  min-width: 44px;
+}
+
+.touch-device .daw-shell .hw-btn {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.touch-device .daw-shell .ms-btn {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.touch-device .daw-shell .formula-ref-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+}
+
+.synth-touch-drag-chip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 9400;
+  pointer-events: none;
+  min-width: 200px;
+  padding: 12px 14px 10px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(24, 18, 22, 0.97), rgba(12, 8, 10, 0.98));
+  border: 1px solid rgba(232, 160, 48, 0.35);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+
+.synth-touch-drag-chip-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  color: var(--amber, #e8a030);
+  margin-bottom: 6px;
+}
+
+.synth-touch-drag-chip-snapped {
+  margin-top: 8px;
+  font-size: 0.68rem;
+  color: var(--mint, #7fdcc0);
+  font-family: var(--font-mono, monospace);
+}
+
+.signal-block-touch-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 2;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.22) 0%, transparent 62%);
+  animation: signal-block-ripple 420ms ease-out forwards;
+}
+
+@keyframes signal-block-ripple {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+}
+
+.signal-block--touch-armed {
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.25);
+}
+
+.signal-block-duration-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  font-family: var(--font-mono, monospace);
+  color: #f5f0e8;
+  background: rgba(8, 4, 8, 0.92);
+  border: 1px solid rgba(232, 160, 48, 0.35);
+  z-index: 8;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+@keyframes lane-drop-flash {
+  0% {
+    box-shadow: inset 0 0 0 2px rgba(255, 220, 140, 0.95);
+    background-color: rgba(255, 220, 140, 0.12);
+  }
+  100% {
+    box-shadow: inset 0 0 0 0 transparent;
+    background-color: transparent;
+  }
+}
+
+.timeline-lane.lane-drop-flash {
+  animation: lane-drop-flash 380ms ease-out;
+}
+
+.bottom-sheet-host {
+  position: fixed;
+  inset: 0;
+  z-index: 9200;
+}
+
+.bottom-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.52);
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.bottom-sheet-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 70vh;
+  overflow: auto;
+  background: linear-gradient(180deg, #1c1418, #0c080a);
+  border-radius: 16px 16px 0 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: none;
+  box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.65);
+  animation: bottom-sheet-slide-up 240ms ease-out;
+}
+
+@keyframes bottom-sheet-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.bottom-sheet-handle {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 6px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.bottom-sheet-handle-bar {
+  width: 44px;
+  height: 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.bottom-sheet-title {
+  text-align: center;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 240, 220, 0.55);
+  margin-bottom: 6px;
+}
+
+.bottom-sheet-actions {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 18px;
+}
+
+.bottom-sheet-btn {
+  width: 100%;
+  min-height: 48px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-cream, #f5f0e8);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.bottom-sheet-btn.danger {
+  border-color: rgba(255, 80, 80, 0.45);
+  color: #ffb4b4;
+}
+
+.bottom-sheet-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.formula-input--touch {
+  min-height: 3.2rem;
+  line-height: 1.35;
+  resize: vertical;
+}
+
+.formula-syntax-muted {
+  margin-top: 8px;
+  font-size: 0.7rem;
+  color: var(--text-muted, #a89890);
+}
+
+.formula-quick-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.formula-quick-chip {
+  border-radius: 8px;
+  border: 1px solid rgba(232, 160, 48, 0.28);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-cream, #f0e8e0);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.68rem;
+  padding: 8px 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.formula-live-status {
+  min-height: 1.1rem;
+  margin-top: 6px;
+  font-size: 0.72rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.formula-live-status.ok .formula-ok-mark {
+  color: #5cdf8f;
+  font-weight: 700;
+}
+
+.formula-live-status.bad .formula-live-err {
+  color: #ff8a8a;
+}
+
+.formula-keyboard-toolbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 9600;
+  background: linear-gradient(180deg, #22202a, #141218);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px 8px 10px;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.45);
+}
+
+.formula-toolbar-chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.formula-toolbar-key {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f5f0e8;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.75rem;
+}
+
+.formula-toolbar-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.formula-toolbar-clear {
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: var(--text-cream, #f0e8e0);
+}
+
+.formula-toolbar-done {
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(180deg, #e8a030, #c07018);
+  color: #1a0a08;
+  font-weight: 700;
+  font-size: 0.95rem;
+}

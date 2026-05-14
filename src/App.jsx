@@ -44,6 +44,10 @@ const CustomSoundsPanel   = React.lazy(() => import("./components/CustomSoundsPa
 const TutorialTour           = React.lazy(() => import("./components/TutorialTour"));
 
 import { MAX_TRACKS }    from "./utils/ranges";
+import { beatDurationSeconds } from "./utils/gridSnap";
+import { useTouchUi } from "./context/TouchUiContext";
+import SynthChipTouchPreview from "./components/SynthChipTouchPreview";
+import { hapticLight, hapticMedium, hapticSuccess } from "./utils/haptics";
 import "./styles/app.css";
 
 export default function App() {
@@ -64,6 +68,11 @@ export default function App() {
   } = useCloudSongs(user, prefs.isPremium);
 
   const customSoundsLib = useCustomSounds();
+
+  const touchUi = useTouchUi();
+  const timelineRef = useRef(null);
+  const synthTouchPayloadRef = useRef(null); // { waveType, customFormula }
+  const [synthTouchOverlay, setSynthTouchOverlay] = useState(null); // floating chip while dragging from panel
 
   // ── UI state ─────────────────────────────────────────────────────────
   const [showAuth,        setShowAuth]        = useState(false);
@@ -210,10 +219,83 @@ export default function App() {
       if (!state.selectedBlocks?.length) return;
       e.preventDefault();
       actions.deleteSelectedBlocks();
+      void hapticMedium();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [state.selectedBlocks, actions]);
+
+  useEffect(() => {
+    if (!synthTouchOverlay?.active) return undefined;
+
+    function move(ev) {
+      const dp = timelineRef.current?.resolveDrop(ev.clientX, ev.clientY);
+      setSynthTouchOverlay((prev) =>
+        prev?.active ? { ...prev, x: ev.clientX, y: ev.clientY, dropPreview: dp } : prev,
+      );
+    }
+
+    function end(ev) {
+      const stash = synthTouchPayloadRef.current;
+      synthTouchPayloadRef.current = null;
+      setSynthTouchOverlay(null);
+      if (!stash) return;
+      const drop = timelineRef.current?.resolveDrop(ev.clientX, ev.clientY);
+      if (!drop) return;
+      actions.addBlock(drop.trackId, drop.time);
+      const formulaPatch =
+        stash.waveType === "custom" && stash.customFormula
+          ? { waveform: "custom", customFormula: stash.customFormula }
+          : { waveform: stash.waveType };
+      actions.updateTrack(drop.trackId, formulaPatch);
+      actions.clearBlockSelection();
+      actions.selectTrack(drop.trackId);
+      timelineRef.current?.flashLane(drop.trackId);
+      void hapticLight();
+    }
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+  }, [synthTouchOverlay?.active]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function beginSynthTouchDrag(payload) {
+    synthTouchPayloadRef.current = {
+      waveType: payload.waveType,
+      customFormula: payload.customFormula || "",
+    };
+    const { clientX: x, clientY: y } = payload;
+    const dp = timelineRef.current?.resolveDrop(x, y);
+    setSynthTouchOverlay({
+      active: true,
+      x,
+      y,
+      previewTrack: payload.previewTrack,
+      waveTypeLabel: payload.waveTypeLabel ?? payload.waveType?.toUpperCase?.(),
+      waveType: payload.waveType,
+      dropPreview: dp,
+    });
+  }
+
+  function focusSignalPanel(trackId) {
+    actions.selectTrack(trackId);
+    window.requestAnimationFrame(() => {
+      document.querySelector('[data-tour="signal-panel"]')?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    });
+  }
+
+  function handleDeleteBlock(trackId, blockId) {
+    void hapticMedium();
+    actions.deleteBlock(trackId, blockId);
+  }
 
   // ──────────────────────────────────────────────────────────────────────
   // Transport
@@ -301,6 +383,7 @@ export default function App() {
     };
     writeLocalSongs([local, ...readLocalSongs()]);
     downloadProjectFile(state, { decade: prefs.decadeTheme });
+    void hapticSuccess();
   }
 
   async function handleOpenProjectFile(file) {
@@ -390,6 +473,7 @@ export default function App() {
     };
     writeLocalSongs([local, ...readLocalSongs()]);
     setRecordedReview(null);
+    void hapticSuccess();
   }
 
   async function handleReviewSaveCloud() {
@@ -495,6 +579,27 @@ export default function App() {
       <OfflineBadge online={online} supabaseEnabled={supabaseEnabled} />
       <PortraitGate decade={prefs.decadeTheme} />
 
+      {synthTouchOverlay?.active && (
+        <SynthChipTouchPreview
+          waveTypeLabel={synthTouchOverlay.waveTypeLabel}
+          waveType={synthTouchOverlay.waveType}
+          customFormula=""
+          previewTrackStub={synthTouchOverlay.previewTrack}
+          x={synthTouchOverlay.x}
+          y={synthTouchOverlay.y}
+          snappedTimeDisplay={
+            synthTouchOverlay.dropPreview
+              ? (() => {
+                const bd = beatDurationSeconds(state.bpm);
+                const t = synthTouchOverlay.dropPreview.time;
+                const bn = Math.max(1, Math.round(t / bd) + 1);
+                return `Beat ${bn} @ ${t.toFixed(2)}s`;
+              })()
+              : ""
+          }
+        />
+      )}
+
       {/* ── Master Visualizer ── */}
       <div className="visualizer-wrap" data-tour="visualizer">
         <MasterVisualizer analyser={analyser} />
@@ -549,6 +654,8 @@ export default function App() {
         <TrackEditor
           track={selectedTrack}
           onUpdate={actions.updateTrack}
+          touchUi={touchUi}
+          onSynthTouchDragStart={beginSynthTouchDrag}
         />
       </div>
 
@@ -645,6 +752,7 @@ export default function App() {
         <div className="timeline-root" data-tour="timeline" style={{ flex: 1, display: "flex", position: "relative" }}>
           <BlockSelectionHint />
           <Timeline
+            ref={timelineRef}
             tracks={compiledTracks}
             bpm={state.bpm}
             zoom={state.zoom}
@@ -652,23 +760,26 @@ export default function App() {
             currentTime={state.currentTime}
             selectedTrackId={state.selectedTrackId}
             selectedBlocks={state.selectedBlocks}
+            touchUi={touchUi}
             onClearBlockSelection={actions.clearBlockSelection}
             onSelectTrack={actions.selectTrack}
             onAddBlock={actions.addBlock}
             onMoveBlock={actions.moveBlock}
             onMoveBlockToTrack={actions.moveBlockToTrack}
             onResizeBlock={actions.resizeBlock}
-            onDeleteBlock={actions.deleteBlock}
+            onDeleteBlock={handleDeleteBlock}
             onDuplicateBlock={actions.duplicateBlock}
             clipboard={state.clipboard}
             onSelectBlock={actions.selectBlock}
             onSplitBlock={actions.splitBlock}
             onCopyBlock={actions.copyBlock}
+            onCutBlock={actions.cutBlock}
             onPasteBlock={actions.pasteBlock}
             onSeek={handleSeek}
             onUpdateTrack={actions.updateTrack}
             sidebarScrollRef={sidebarScrollRef}
             onDropCustomSound={handleDropLibrarySoundOnTimeline}
+            onFocusSignalPanel={focusSignalPanel}
           />
         </div>
       </div>

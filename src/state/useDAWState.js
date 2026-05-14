@@ -346,6 +346,31 @@ export function useDAWState() {
     });
   }
 
+  function cutBlock(trackId, blockId) {
+    setState(prev => {
+      const track = prev.tracks.find(t => t.id === trackId);
+      const block = track?.blocks.find(b => b.id === blockId);
+      if (!block) return prev;
+      return {
+        ...prev,
+        clipboard: {
+          block: {
+            ...block,
+            recordedSamples: block.recordedSamples?.length
+              ? Float32Array.from(block.recordedSamples)
+              : undefined,
+          },
+        },
+        selectedBlocks: prev.selectedBlocks.filter(
+          k => !(k.trackId === trackId && k.blockId === blockId)
+        ),
+        tracks: prev.tracks.map(t =>
+          t.id === trackId ? { ...t, blocks: t.blocks.filter(b => b.id !== blockId) } : t
+        ),
+      };
+    });
+  }
+
   function pasteBlock(trackId, startTime) {
     setState(prev => {
       if (!prev.clipboard?.block) return prev;
@@ -590,7 +615,7 @@ export function useDAWState() {
     actions: {
       addTrack, deleteTrack, updateTrack, selectTrack, duplicateTrack,
       addBlock, moveBlock, moveBlockToTrack, resizeBlock, deleteBlock,
-      duplicateBlock, splitBlock, copyBlock, pasteBlock, selectBlock, clearBlockSelection,
+      duplicateBlock, splitBlock, copyBlock, cutBlock, pasteBlock, selectBlock, clearBlockSelection,
       deleteSelectedBlocks,
       setIsPlaying, setIsRecording, setCurrentTime,
       setBpm, setMasterVolume, setZoom,

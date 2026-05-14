@@ -16,7 +16,9 @@ function describeArc(cx, cy, r, startDeg, endDeg) {
   return `M ${s.x.toFixed(3)} ${s.y.toFixed(3)} A ${r} ${r} 0 ${la} 1 ${e.x.toFixed(3)} ${e.y.toFixed(3)}`;
 }
 
-export default function Knob({ value, min = 0, max = 1, step = 0.01, onChange, label, size = 56 }) {
+export default function Knob({
+  value, min = 0, max = 1, step = 0.01, onChange, label, size = 56, touchUi = false,
+}) {
   const dragStartY   = useRef(null);
   const dragStartVal = useRef(null);
 
@@ -54,10 +56,11 @@ export default function Knob({ value, min = 0, max = 1, step = 0.01, onChange, l
   const onPointerMove = useCallback((e) => {
     if (dragStartY.current === null) return;
     const dy    = dragStartY.current - e.clientY;
-    const delta = (dy / 100) * (max - min);
+    const divisor = touchUi ? 54 : 100;
+    const delta = (dy / divisor) * (max - min);
     const raw   = Math.max(min, Math.min(max, dragStartVal.current + delta));
     onChange(parseFloat((Math.round(raw / step) * step).toFixed(10)));
-  }, [min, max, step, onChange]);
+  }, [min, max, step, onChange, touchUi]);
 
   const onPointerUp = useCallback(() => {
     dragStartY.current   = null;

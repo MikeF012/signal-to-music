@@ -1350,7 +1350,7 @@ body {
 .block-drag-body {
   position: absolute;
   inset: 0;
-  right: 8px;
+  right: 30px;
   cursor: grab;
   z-index: 3;
 }
@@ -1362,10 +1362,31 @@ body {
   right: 0;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: 28px;
+  min-width: 28px;
   cursor: ew-resize;
-  background: rgba(255,255,255,.04);
+  background: rgba(255,255,255,.06);
   z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid rgba(255,255,255,.12);
+}
+
+.block-resize-grip-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.block-resize-grip-lines span {
+  display: block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255,255,255,.45);
 }
 
 .block-resize-handle:hover { background: rgba(232,160,48,.18); }

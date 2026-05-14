@@ -16,7 +16,14 @@ const FORMULA_EXAMPLES = [
   { expr: "square(t)",           desc: "square alias" },
 ];
 
-export default function TrackEditor({ track, onUpdate }) {
+export default function TrackEditor({
+  track,
+  onUpdate,
+  touchUi = false,
+  onSynthTouchDragStart,
+}) {
+  const chipArmRef = useRef(null); // touch synth drag hybrid: suppress duplicate HTML drag
+
   const [showRef, setShowRef] = useState(false);
   const [showDragHintBanner, setShowDragHintBanner] = useState(() => {
     if (typeof localStorage === "undefined") return false;
@@ -32,17 +39,14 @@ export default function TrackEditor({ track, onUpdate }) {
     setShowDragHintBanner(false);
   }
 
-  // Local editable state for LED inputs
   const [freqVal,  setFreqVal]  = useState("");
   const [ampVal,   setAmpVal]   = useState("");
   const [phaseVal, setPhaseVal] = useState("");
 
-  // Track whether each field is currently focused (don't overwrite while typing)
   const freqFocused  = useRef(false);
   const ampFocused   = useRef(false);
   const phaseFocused = useRef(false);
 
-  // Sync from props when not focused
   useEffect(() => {
     if (!freqFocused.current)  setFreqVal(String(track?.frequency  ?? ""));
   }, [track?.frequency]);
@@ -53,7 +57,6 @@ export default function TrackEditor({ track, onUpdate }) {
     if (!phaseFocused.current) setPhaseVal(String(track?.phase     ?? ""));
   }, [track?.phase]);
 
-  // Also init on track switch
   const prevId = useRef(null);
   useEffect(() => {
     if (track && track.id !== prevId.current) {
@@ -108,8 +111,60 @@ export default function TrackEditor({ track, onUpdate }) {
     e.dataTransfer.effectAllowed = "copy";
   }
 
+  function onWavePointerDown(e, w) {
+    if (!touchUi || e.pointerType !== "touch") return;
+    chipArmRef.current = {
+      pointerId: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      waveType: w,
+      suppressNativeDrag: false,
+    };
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* noop */ }
+  }
+
+  function onWavePointerMove(e, w) {
+    if (!touchUi) return;
+    const arm = chipArmRef.current;
+    if (
+      !arm ||
+      arm.pointerId !== e.pointerId ||
+      arm.suppressNativeDrag ||
+      typeof onSynthTouchDragStart !== "function"
+    ) return;
+
+    const dx = e.clientX - arm.x;
+    const dy = e.clientY - arm.y;
+    if (dx * dx + dy * dy < 100) return;
+    arm.suppressNativeDrag = true;
+
+    const previewTrack = {
+      id: `${track.id}-synth-drag`,
+      waveform: w === "custom" ? "custom" : w,
+      color: track.color,
+      amplitude: track.amplitude ?? 0.85,
+      customEvaluator: w === "custom" ? track.customEvaluator : undefined,
+    };
+
+    onSynthTouchDragStart({
+      waveType: w,
+      customFormula: w === "custom" ? (track.customFormula ?? "sin(t)") : "",
+      clientX: e.clientX,
+      clientY: e.clientY,
+      previewTrack,
+      waveTypeLabel: w === "custom" ? "CUSTOM" : w.toUpperCase(),
+    });
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+  }
+
+  function onWavePointerEnd(e) {
+    const arm = chipArmRef.current;
+    if (arm && arm.pointerId === e.pointerId) chipArmRef.current = null;
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+  }
+
   return (
-    <div className="signal-panel">
+    <div className="signal-panel" data-touch-signal-controls={touchUi ? "1" : "0"}>
       {showDragHintBanner && (
         <div className="signal-drag-hint-first" role="note">
           <span className="signal-drag-hint-first-icon" aria-hidden>⇄</span>
@@ -119,7 +174,6 @@ export default function TrackEditor({ track, onUpdate }) {
           <button type="button" className="signal-drag-hint-first-dismiss" onClick={dismissDragHintBanner} aria-label="Dismiss hint">×</button>
         </div>
       )}
-      {/* ── Left: track identity ── */}
       <div className="signal-track-ident">
         <div
           className="signal-track-dot"
@@ -133,18 +187,16 @@ export default function TrackEditor({ track, onUpdate }) {
         </span>
       </div>
 
-      {/* ── Right: parameters ── */}
       <div className="signal-body">
 
-        {/* ── Formula block (bordered) ── */}
         <div className="signal-waveform-block">
 
-          {/* Formula */}
           <div className="signal-formula-section">
             <div className="signal-formula-header">
               <span className="signal-formula-label">f(t) =</span>
               <button
-                className="formula-ref-btn"
+                className="formula-ref-btn interactive-press"
+                type="button"
                 onClick={() => setShowRef(v => !v)}
                 title="Show formula syntax reference"
               >
@@ -154,6 +206,7 @@ export default function TrackEditor({ track, onUpdate }) {
             <div className="formula-wrap formula-wrap-full">
               <NaturalMathInput
                 value={track.customFormula}
+                touchUi={touchUi}
                 onChange={(v) => set("customFormula", v)}
                 error={track.waveform === "custom" ? (track.formulaError ?? "") : ""}
                 onCommit={(raw) => {
@@ -183,12 +236,12 @@ export default function TrackEditor({ track, onUpdate }) {
             </div>
           </div>
 
-        </div>{/* end .signal-waveform-block */}
+        </div>
 
-        {/* ── Knobs + Wave selector row ── */}
         <div className="signal-knobs-row">
           <div className="signal-knob-group">
             <Knob
+              touchUi={touchUi}
               value={track.frequency}
               min={freqRange.min}
               max={freqRange.max}
@@ -215,6 +268,7 @@ export default function TrackEditor({ track, onUpdate }) {
 
           <div className="signal-knob-group">
             <Knob
+              touchUi={touchUi}
               value={track.amplitude}
               min={ampRange.min}
               max={ampRange.max}
@@ -241,6 +295,7 @@ export default function TrackEditor({ track, onUpdate }) {
 
           <div className="signal-knob-group">
             <Knob
+              touchUi={touchUi}
               value={track.phase}
               min={phaseRange.min}
               max={phaseRange.max}
@@ -264,7 +319,6 @@ export default function TrackEditor({ track, onUpdate }) {
               title={`Phase — type to set (${phaseRange.min}–${phaseRange.max} rad)`}
             />
           </div>
-          {/* Wave type selector — horizontal row, fills space right of knobs; draggable */}
           <div className="signal-knob-group signal-wave-group">
             <span className="signal-knob-label">Wave</span>
             <div className="signal-wave-buttons">
@@ -272,11 +326,21 @@ export default function TrackEditor({ track, onUpdate }) {
                 <button
                   key={w}
                   type="button"
-                  className={`wave-btn wave-btn-tall${track.waveform === w ? " active" : ""}`}
+                  draggable
+                  className={`wave-btn wave-btn-tall interactive-press${track.waveform === w ? " active" : ""}`}
                   onClick={() => set("waveform", w)}
                   title={`Set waveform to ${w} — or drag onto a track lane`}
-                  draggable="true"
-                  onDragStart={(e) => handleWaveDragStart(e, w)}
+                  onDragStart={(e) => {
+                    if (touchUi && chipArmRef.current?.suppressNativeDrag) {
+                      e.preventDefault();
+                      return;
+                    }
+                    handleWaveDragStart(e, w);
+                  }}
+                  onPointerDown={(e) => onWavePointerDown(e, w)}
+                  onPointerMove={(e) => onWavePointerMove(e, w)}
+                  onPointerUp={onWavePointerEnd}
+                  onPointerCancel={onWavePointerEnd}
                 >
                   {w.toUpperCase()}
                 </button>

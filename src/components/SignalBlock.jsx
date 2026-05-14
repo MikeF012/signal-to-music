@@ -1,9 +1,10 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
-// useEffect is used by BlockMenu for dismiss-on-outside-click
+
+import BlockActionBottomSheet from "./BlockActionBottomSheet";
+import { minClipDurationBeat } from "../utils/gridSnap";
 
 // ── Mini waveform preview ─────────────────────────────────────────────────
-// t advances at the same rate per second as the audio engine — no compression.
-const REFERENCE_DURATION = 4; // seconds — 1× zoom reference
+const REFERENCE_DURATION = 4;
 
 function MiniWaveSynth({ track, width, height = 52, durationSecs = REFERENCE_DURATION }) {
   if (width < 4) return null;
@@ -16,7 +17,7 @@ function MiniWaveSynth({ track, width, height = 52, durationSecs = REFERENCE_DUR
     const t = (i / (n - 1)) * totalSweep;
     let y = 0;
     switch (track.waveform) {
-      case "mic": /* handled elsewhere */ y = Math.sin(t); break;
+      case "mic": y = Math.sin(t); break;
       case "cosine": y = Math.cos(t); break;
       case "square": y = Math.sign(Math.sin(t)); break;
       case "custom":
@@ -26,7 +27,7 @@ function MiniWaveSynth({ track, width, height = 52, durationSecs = REFERENCE_DUR
         break;
       default: y = Math.sin(t);
     }
-    y = Math.max(-1, Math.min(1, y)) * track.amplitude;
+    y = Math.max(-1, Math.min(1, y)) * (track.amplitude ?? 0.85);
     pts.push(`${((i / (n - 1)) * width).toFixed(1)},${(height / 2 - y * (height / 2 - 4)).toFixed(1)}`);
   }
 
@@ -54,8 +55,7 @@ function MiniWaveSynth({ track, width, height = 52, durationSecs = REFERENCE_DUR
   );
 }
 
-/** Real PCM preview inside the clip (per-block recording or legacy track buffer). */
-function MiniWaveRecorded({ samples, sampleRate, width, height = 52, durationSecs }) {
+function MiniWaveRecorded({ samples, sampleRate, width, height = 52, durationSecs, strokeColor }) {
   const sr = sampleRate || 44100;
   const points = useMemo(() => {
     if (!samples || !samples.length || width < 4) return "";
@@ -77,6 +77,8 @@ function MiniWaveRecorded({ samples, sampleRate, width, height = 52, durationSec
 
   if (!samples || !samples.length || width < 4) return null;
 
+  const stroke = strokeColor || "#dcdcdc";
+
   return (
     <svg
       width={width}
@@ -86,7 +88,7 @@ function MiniWaveRecorded({ samples, sampleRate, width, height = 52, durationSec
       <polyline
         points={points}
         fill="none"
-        stroke={track.color}
+        stroke={stroke}
         strokeWidth={1.5}
         opacity={0.85}
       />
@@ -94,9 +96,21 @@ function MiniWaveRecorded({ samples, sampleRate, width, height = 52, durationSec
   );
 }
 
-// ── Block context menu ────────────────────────────────────────────────────
+// ── Block context menu (desktop) ───────────────────────────────────────────
 
-function BlockMenu({ x, y, onSplit, onDuplicate, onCopy, onDelete, onClose }) {
+function BlockMenu({
+  x,
+  y,
+  onCut,
+  onCopy,
+  onPaste,
+  pasteDisabled,
+  onDuplicate,
+  onSplitPlayhead,
+  onDelete,
+  onProperties,
+  onClose,
+}) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -120,25 +134,49 @@ function BlockMenu({ x, y, onSplit, onDuplicate, onCopy, onDelete, onClose }) {
   };
 
   const items = [
-    { label: "✂  Split here",  fn: onSplit },
-    { label: "⧉  Duplicate",   fn: onDuplicate },
-    { label: "⎘  Copy",        fn: onCopy },
-    { label: "×  Delete",      fn: onDelete, danger: true },
+    { label: "✂  Cut",           fn: onCut },
+    { label: "⎘  Copy",         fn: onCopy },
+    { label: "⎘  Paste",        fn: onPaste, disabled: pasteDisabled },
+    { label: "⧉  Duplicate",    fn: onDuplicate },
+    { label: "↱  Split at playhead", fn: onSplitPlayhead },
+    { label: "⚙  Properties",  fn: onProperties },
+    { label: "×  Delete",       fn: onDelete, danger: true },
   ];
 
   return (
     <div ref={ref} className="block-ctx-menu" style={style}>
-      {items.map(({ label, fn, danger }) => (
+      {items.map(({ label, fn, danger, disabled }) => (
         <button
           key={label}
           type="button"
           className={`block-ctx-item${danger ? " danger" : ""}`}
-          onMouseDown={(e) => { e.stopPropagation(); fn(); onClose(); }}
+          disabled={disabled}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            if (disabled || !fn) return;
+            fn();
+            onClose();
+          }}
         >
           {label}
         </button>
       ))}
     </div>
+  );
+}
+
+function LongPressRipple({ active }) {
+  if (!active) return null;
+  return <div className="signal-block-touch-ripple" aria-hidden />;
+}
+
+function ResizeGripIcon() {
+  return (
+    <span className="block-resize-grip-lines" aria-hidden>
+      <span />
+      <span />
+      <span />
+    </span>
   );
 }
 
@@ -148,6 +186,10 @@ function SignalBlock({
   block,
   track,
   zoom,
+  bpm,
+  currentTime,
+  touchUi = false,
+  clipboard,
   isSelected,
   onSelect,
   onMove,
@@ -156,47 +198,141 @@ function SignalBlock({
   onDuplicate,
   onSplit,
   onCopy,
+  onCut,
+  onPastePlayhead,
+  onOpenProperties,
   onDragStart,
 }) {
   const left  = block.startTime * zoom;
   const width = Math.max(2, block.duration * zoom);
 
-  const [menu, setMenu] = useState(null); // { x, y, splitTime } | null
+  const [menu, setMenu] = useState(null); // { x, y } | null
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [longPressGlow, setLongPressGlow] = useState(false);
 
   const resizeDrag = useRef(null);
+  const [resizingUi, setResizingUi] = useState(false);
+  const lpTimerRef = useRef(null);
+  const touchDragArmRef = useRef(null); // deferred drag state for touch pointers
+
+  const minDur = minClipDurationBeat(bpm);
+
+  function clearLongPressTimer() {
+    if (lpTimerRef.current != null) {
+      window.clearTimeout(lpTimerRef.current);
+      lpTimerRef.current = null;
+    }
+  }
+
+  function minWidthPx() {
+    return Math.max(minDur * zoom, 8);
+  }
+
+  function openActionSheetFromLongPress() {
+    setSheetOpen(true);
+    setLongPressGlow(true);
+    window.setTimeout(() => setLongPressGlow(false), 420);
+    onSelect?.(false);
+  }
 
   function startResize(e) {
-    if (e.button !== 0) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
-    resizeDrag.current = { startX: e.clientX, startDuration: block.duration };
+    resizeDrag.current = {
+      startX: e.clientX,
+      startDuration: block.duration,
+      pointerId: e.pointerId,
+    };
+    setResizingUi(true);
   }
 
   function onResizeMove(e) {
-    if (!resizeDrag.current) return;
+    if (!resizeDrag.current || e.pointerId !== resizeDrag.current.pointerId) return;
     const dx = e.clientX - resizeDrag.current.startX;
-    onResize(block.id, Math.max(0.01, resizeDrag.current.startDuration + dx / zoom));
+    const next = Math.max(minDur, resizeDrag.current.startDuration + dx / zoom);
+    onResize(block.id, next);
   }
 
-  function onResizeUp() { resizeDrag.current = null; }
+  function onResizeUp(e) {
+    if (resizeDrag.current && e.pointerId !== resizeDrag.current.pointerId) return;
+    resizeDrag.current = null;
+    setResizingUi(false);
+  }
 
-  function handleMoveDown(e) {
-    if (e.button !== 0) return;
+  function attachGlobalBlockDrag(origEvent) {
+    onDragStart?.(origEvent, block.id, track.id, block.startTime);
+  }
+
+  function handleMovePointerDown(e) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
     onSelect?.(Boolean(e.shiftKey));
-    onDragStart?.(e, block.id, track.id, block.startTime, block.duration);
+
+    const isTouchLike = touchUi && e.pointerType === "touch";
+
+    if (!isTouchLike) {
+      attachGlobalBlockDrag(e);
+      return;
+    }
+
+    clearLongPressTimer();
+    lpTimerRef.current = window.setTimeout(() => {
+      lpTimerRef.current = null;
+      openActionSheetFromLongPress();
+    }, 600);
+
+    touchDragArmRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      lifted: false,
+    };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch { /* noop */ }
+  }
+
+  function handleMovePointerMove(e) {
+    const arm = touchDragArmRef.current;
+    if (!arm || arm.pointerId !== e.pointerId || arm.lifted) return;
+
+    const dx = e.clientX - arm.startX;
+    const dy = e.clientY - arm.startY;
+    if (dx * dx + dy * dy > 100) {
+      clearLongPressTimer();
+      arm.lifted = true;
+      attachGlobalBlockDrag(e);
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch { /* noop */ }
+    }
+  }
+
+  function handleMovePointerUp(e) {
+    const arm = touchDragArmRef.current;
+    if (arm?.pointerId === e.pointerId) {
+      touchDragArmRef.current = null;
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch { /* noop */ }
+    }
+    clearLongPressTimer();
   }
 
   function handleContextMenu(e) {
+    if (touchUi && e.pointerType === "touch") {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     onSelect?.(false);
-    const rect = e.currentTarget.closest(".signal-block").getBoundingClientRect();
-    const relX = e.clientX - rect.left;
-    const splitTime = block.startTime + relX / zoom;
-    setMenu({ x: e.clientX + 4, y: e.clientY + 4, splitTime });
+    clearLongPressTimer();
+    setMenu({ x: e.clientX + 4, y: e.clientY + 4 });
   }
 
   let sampleBuf = block.recordedSamples?.length ? block.recordedSamples : null;
@@ -207,31 +343,52 @@ function SignalBlock({
   }
   const usesSamples = !!(sampleBuf && sampleSr);
 
+  const pasteDisabled = !clipboard?.block;
+
+  const sheetActions = [
+    { label: "Cut",               onClick: () => { onCut?.(); } },
+    { label: "Copy",              onClick: () => { onCopy?.(); } },
+    { label: "Paste",             onClick: () => { onPastePlayhead?.(); }, disabled: pasteDisabled },
+    { label: "Duplicate",         onClick: () => { onDuplicate?.(); } },
+    { label: "Split at playhead", onClick: () => { onSplit?.(block.id, currentTime); } },
+    { label: "Delete",            onClick: () => { onDelete(block.id); }, danger: true },
+    { label: "Properties",        onClick: () => { onOpenProperties?.(); } },
+  ];
+
+  useEffect(() => () => clearLongPressTimer(), []);
+
+  const blockClassList = [
+    "signal-block",
+    track.muted ? "muted" : "",
+    isSelected ? "selected" : "",
+    usesSamples ? "signal-block--audio" : "",
+    longPressGlow ? "signal-block--touch-armed" : "",
+  ].join(" ").trim();
+
+  const displayW = Math.max(minWidthPx(), width);
+
   return (
     <>
       <div
-        className={[
-          "signal-block",
-          track.muted ? "muted"    : "",
-          isSelected  ? "selected" : "",
-          usesSamples ? "signal-block--audio" : "",
-        ].join(" ").trim()}
+        className={blockClassList}
         style={{
           left,
-          width,
+          width: displayW,
           borderColor: track.color,
-          background:  `linear-gradient(180deg, ${track.color}0d 0%, #0a060800 50%)`,
+          background: `linear-gradient(180deg, ${track.color}0d 0%, #0a060800 50%)`,
         }}
       >
+        <LongPressRipple active={longPressGlow} />
         {usesSamples ? (
           <MiniWaveRecorded
             samples={sampleBuf}
             sampleRate={sampleSr}
-            width={width}
+            width={displayW}
             durationSecs={block.duration}
+            strokeColor={track.color}
           />
         ) : (
-          <MiniWaveSynth track={track} width={width} durationSecs={block.duration} />
+          <MiniWaveSynth track={track} width={displayW} durationSecs={block.duration} />
         )}
 
         {usesSamples && (
@@ -244,7 +401,10 @@ function SignalBlock({
 
         <div
           className="block-drag-body"
-          onPointerDown={handleMoveDown}
+          onPointerDown={handleMovePointerDown}
+          onPointerMove={handleMovePointerMove}
+          onPointerUp={handleMovePointerUp}
+          onPointerCancel={handleMovePointerUp}
           onContextMenu={handleContextMenu}
           role="button"
           tabIndex={0}
@@ -252,24 +412,46 @@ function SignalBlock({
           aria-pressed={isSelected}
         />
 
+        {resizingUi && (
+          <div className="signal-block-duration-tooltip" aria-hidden>
+            {block.duration.toFixed(2)} s
+          </div>
+        )}
+
         <div
           className="block-resize-handle"
           onPointerDown={startResize}
           onPointerMove={onResizeMove}
           onPointerUp={onResizeUp}
           onPointerCancel={onResizeUp}
-        />
+          role="presentation"
+          title="Resize block"
+        >
+          <ResizeGripIcon />
+        </div>
       </div>
 
-      {menu && (
+      {menu && !touchUi && (
         <BlockMenu
           x={menu.x}
           y={menu.y}
-          onSplit={() => onSplit?.(block.id, menu.splitTime)}
-          onDuplicate={() => onDuplicate?.(block.id)}
-          onCopy={() => onCopy?.(block.id)}
+          onCut={() => onCut?.()}
+          onCopy={() => onCopy?.()}
+          onPaste={() => onPastePlayhead?.()}
+          pasteDisabled={pasteDisabled}
+          onDuplicate={() => onDuplicate?.()}
+          onSplitPlayhead={() => onSplit?.(block.id, currentTime)}
           onDelete={() => onDelete(block.id)}
+          onProperties={() => onOpenProperties?.()}
           onClose={() => setMenu(null)}
+        />
+      )}
+
+      {touchUi && (
+        <BlockActionBottomSheet
+          open={sheetOpen}
+          onClose={() => setSheetOpen(false)}
+          actions={sheetActions}
         />
       )}
     </>
