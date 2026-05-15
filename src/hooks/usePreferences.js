@@ -23,7 +23,16 @@ function readLocal() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_PREFS, ...parsed };
+    const merged = { ...DEFAULT_PREFS, ...parsed };
+    const dec = parsed.decadeTheme;
+    if (
+      dec == null ||
+      dec === "" ||
+      !["80s", "90s-2000s", "2010s"].includes(String(dec))
+    ) {
+      merged.decadeTheme = DEFAULT_PREFS.decadeTheme;
+    }
+    return merged;
   } catch {
     return null;
   }

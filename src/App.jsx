@@ -31,6 +31,7 @@ import AvatarMenu        from "./components/AvatarMenu";
 import OfflineBadge      from "./components/OfflineBadge";
 import PortraitGate      from "./components/PortraitGate";
 import BlockSelectionHint from "./components/BlockSelectionHint";
+import SplashScreen      from "./components/SplashScreen";
 
 // ── Modals and panels — lazy loaded so they don't bloat the initial bundle ─
 const AuthModal           = React.lazy(() => import("./components/AuthModal"));
@@ -83,6 +84,11 @@ export default function App() {
   const [countIn,         setCountIn]         = useState(null);
   const [recordedReview,  setRecordedReview]  = useState(null); // { blob, duration, extension?, mime? }
   const [tourVariant,     setTourVariant]      = useState("choose"); // choose | quick | full
+
+  const [showSplash, setShowSplash] = useState(() => {
+    if (import.meta.hot?.data?.skipCompanySplash) return false;
+    return true;
+  });
 
   const sidebarScrollRef = useRef(null);
   const countInTimer     = useRef(null);
@@ -166,14 +172,15 @@ export default function App() {
     if (needsOnboard) queueMicrotask(() => setShowOnboard(true));
   }, [user, prefs.displayName]);
 
-  // ── Dismiss loading screen once React has painted ────────────────────
+  // ── Remove static HTML boot veil after React splash finishes (2010s theme visible underneath) ──
   useEffect(() => {
+    if (showSplash) return;
     const el = document.getElementById("loading-screen");
     if (!el) return;
     el.classList.add("fade-out");
-    const t = setTimeout(() => el.remove(), 300);
-    return () => clearTimeout(t);
-  }, []);
+    const t = window.setTimeout(() => el.remove(), 300);
+    return () => window.clearTimeout(t);
+  }, [showSplash]);
 
   // ── Cleanup ──────────────────────────────────────────────────────────
   useEffect(() => () => {
@@ -538,6 +545,15 @@ export default function App() {
   // ──────────────────────────────────────────────────────────────────────
 
   return (
+    <>
+      {showSplash && (
+        <SplashScreen
+          onComplete={() => {
+            if (import.meta.hot) import.meta.hot.data.skipCompanySplash = true;
+            setShowSplash(false);
+          }}
+        />
+      )}
     <div className={`daw decade-${prefs.decadeTheme} daw-shell`} data-decade={prefs.decadeTheme}>
       {/* Hidden file input for Open Project */}
       <input
@@ -908,5 +924,6 @@ export default function App() {
         )}
       </Suspense>
     </div>
+    </>
   );
 }

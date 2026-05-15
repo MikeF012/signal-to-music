@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SignalSynth</string>
+    <string name="title_activity_main">SignalSynth</string>
+    <string name="package_name">com.signalsynth.app</string>
+    <string name="custom_url_scheme">com.signalsynth.app</string>
+</resources>
