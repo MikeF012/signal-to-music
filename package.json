@@ -15,6 +15,7 @@
     "@capacitor/core": "^8.3.4",
     "@capacitor/haptics": "^8.0.2",
     "@supabase/supabase-js": "^2.49.8",
+    "@vercel/analytics": "^2.0.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
