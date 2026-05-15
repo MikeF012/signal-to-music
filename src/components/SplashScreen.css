@@ -24,7 +24,7 @@
 }
 
 .company-splash__logo {
-  width: 180px;
+  width: 360px;
   height: auto;
   display: block;
   object-fit: contain;
@@ -38,6 +38,6 @@
 
 @media (max-width: 768px) {
   .company-splash__logo {
-    width: 120px;
+    width: 240px;
   }
 }
