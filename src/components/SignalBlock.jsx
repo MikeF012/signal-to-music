@@ -149,7 +149,8 @@ function BlockMenu({
     left: pos.left,
     top:  pos.top,
     zIndex: 400,
-    maxWidth: 200,
+    maxWidth: Math.min(260, typeof window !== "undefined" ? window.innerWidth - 16 : 260),
+    boxSizing: "border-box",
   };
 
   const items = [
@@ -236,6 +237,7 @@ function SignalBlock({
   const [resizingUi, setResizingUi] = useState(false);
   const lpTimerRef = useRef(null);
   const touchDragArmRef = useRef(null); // deferred drag state for touch pointers
+  const dblTapRef = useRef({ t: 0, blockId: null });
 
   const minDur = minClipDurationBeat(bpm);
 
@@ -251,8 +253,7 @@ function SignalBlock({
   }
 
   function openActionSheetFromLongPress() {
-    const pt = touchAnchorRef.current;
-    setTouchAnchorState(pt ? { ...pt } : null);
+    setTouchAnchorState({ centered: true });
     setTouchPopoverOpen(true);
     setLongPressGlow(true);
     window.setTimeout(() => setLongPressGlow(false), 420);
@@ -302,6 +303,22 @@ function SignalBlock({
     }
 
     onSelect?.(Boolean(e.shiftKey));
+
+    const canDblTap = touchUi && (e.pointerType === "touch" || e.pointerType === "pen");
+    if (canDblTap) {
+      const now = Date.now();
+      const prev = dblTapRef.current;
+      if (prev.blockId === block.id && now - prev.t <= 300) {
+        dblTapRef.current = { t: 0, blockId: null };
+        clearLongPressTimer();
+        touchDragArmRef.current = null;
+        setTouchAnchorState({ centered: true });
+        setTouchPopoverOpen(true);
+        touchAnchorRef.current = null;
+        return;
+      }
+      dblTapRef.current = { t: now, blockId: block.id };
+    }
 
     touchAnchorRef.current = { clientX: e.clientX, clientY: e.clientY };
 

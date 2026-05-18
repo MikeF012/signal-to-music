@@ -445,7 +445,7 @@ const Timeline = forwardRef(function Timeline({
           <div
             ref={playheadRef}
             className="playhead draggable"
-            style={{ left: currentTime * zoom, height: Math.max(totalHeight, 400) }}
+            style={{ left: currentTime * zoom }}
             onPointerDown={handlePlayheadPointerDown}
             onPointerMove={handlePlayheadPointerMove}
             onPointerUp={handlePlayheadPointerUp}
@@ -505,7 +505,14 @@ const Timeline = forwardRef(function Timeline({
         <div
           ref={laneMenuRef}
           className="block-ctx-menu"
-          style={{ position: "fixed", left: laneMenu.x, top: laneMenu.y, zIndex: 400 }}
+          style={{
+            position: "fixed",
+            left: laneMenu.x,
+            top: laneMenu.y,
+            zIndex: 400,
+            maxWidth: "min(260px, calc(100vw - 16px))",
+            boxSizing: "border-box",
+          }}
         >
           <button
             className="block-ctx-item"

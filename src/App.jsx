@@ -22,7 +22,6 @@ import {
 import {
   shouldAutoPlayTutorialOnBoot,
   markTutorialSkipped,
-  resetTutorialFlagsForTesting,
 } from "./utils/firstVisitTutorial";
 import { supabase, supabaseEnabled } from "./lib/supabase";
 
@@ -31,10 +30,9 @@ import MasterVisualizer  from "./components/MasterVisualizer";
 import TransportBar      from "./components/TransportBar";
 import Timeline          from "./components/Timeline";
 import TrackEditor       from "./components/TrackEditor";
-import { MuteMicIcon } from "./components/MuteMicIcons";
+import { MuteMicIcon, TrashTrackIcon } from "./components/MuteMicIcons";
 import AvatarMenu        from "./components/AvatarMenu";
 import OfflineBadge      from "./components/OfflineBadge";
-import BlockSelectionHint from "./components/BlockSelectionHint";
 import SplashScreen      from "./components/SplashScreen";
 
 // ── Modals and panels — lazy loaded so they don't bloat the initial bundle ─
@@ -54,6 +52,25 @@ import SynthChipTouchPreview from "./components/SynthChipTouchPreview";
 import { hapticLight, hapticMedium, hapticSuccess } from "./utils/haptics";
 import "./styles/app.css";
 
+const MQ_NARROW_768 = "(max-width: 768px)";
+function useNarrowViewport768() {
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(MQ_NARROW_768).matches,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia(MQ_NARROW_768);
+    function sync() {
+      setNarrow(mq.matches);
+    }
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  return narrow;
+}
+
 export default function App() {
   const { state, actions } = useDAWState();
   const { user, loading: authLoading, login, signup, logout, resetPassword, updatePassword, updateProfile, deleteAccount } = useAuth();
@@ -72,6 +89,7 @@ export default function App() {
   } = useCloudSongs(user, prefs.isPremium);
 
   const touchUi = useTouchUi();
+  const narrowViewport = useNarrowViewport768();
   const timelineRef = useRef(null);
   const synthTouchPayloadRef = useRef(null); // { waveType, customFormula }
   const [synthTouchOverlay, setSynthTouchOverlay] = useState(null); // floating chip while dragging from panel
@@ -671,6 +689,7 @@ export default function App() {
           track={selectedTrack}
           onUpdate={actions.updateTrack}
           touchUi={touchUi}
+          knobSize={narrowViewport ? 56 : 58}
           onSynthTouchDragStart={beginSynthTouchDrag}
         />
       </div>
@@ -704,7 +723,7 @@ export default function App() {
               >
                 {state.tracks.length > 1 && (
                   <button
-                    className="track-del-btn"
+                    className="track-del-btn track-del-btn--corner"
                     type="button"
                     onClick={(e) => handleDeleteTrack(track.id, e)}
                     title="Delete track"
@@ -717,6 +736,17 @@ export default function App() {
                     {track.isMic ? "🎙 " : ""}{track.name}
                   </span>
                   <div className="track-ms-row">
+                    {state.tracks.length > 1 && (
+                      <button
+                        type="button"
+                        className="track-del-inline"
+                        onClick={(e) => handleDeleteTrack(track.id, e)}
+                        title="Delete track"
+                        aria-label="Delete track"
+                      >
+                        <TrashTrackIcon />
+                      </button>
+                    )}
                     <button
                       type="button"
                       className={`ms-btn ms-btn-mic${track.muted ? " muted" : ""}`}
@@ -754,7 +784,6 @@ export default function App() {
 
         {/* ── Right: Timeline ── */}
         <div className="timeline-root" data-tour="timeline" style={{ flex: 1, display: "flex", position: "relative" }}>
-          <BlockSelectionHint />
           <Timeline
             ref={timelineRef}
             tracks={compiledTracks}
@@ -835,11 +864,6 @@ export default function App() {
             cloudSyncing={songsSyncing}
             onClearLocalCache={clearLocalCache}
             onReplayTutorial={() => {
-              setShowSettings(false);
-              setShowTour(true);
-            }}
-            onResetFirstTutorialFlag={() => {
-              resetTutorialFlagsForTesting();
               setShowSettings(false);
               setShowTour(true);
             }}

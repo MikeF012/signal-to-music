@@ -20,6 +20,14 @@
   touch-action: manipulation;
 }
 
+@media (max-width: 768px) {
+  /* Prefer vertical momentum on outer shell — horizontal stays on lanes/ruler strip */
+  .touch-device .daw.daw-shell {
+    touch-action: pan-y pinch-zoom;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 .touch-device .daw-shell .hw-btn:not(:disabled):active,
 .touch-device .daw-shell .wave-btn:not(:disabled):active,
 .touch-device .daw-shell .ms-btn:not(:disabled):active,
@@ -29,8 +37,7 @@
 .touch-device .daw-shell .formula-keypad-btn:not(:disabled):active,
 .touch-device .daw-shell .formula-keypad-action:not(:disabled):active,
 .touch-device .daw-shell .bottom-sheet-btn:not(:disabled):active,
-.touch-device .daw-shell .track-del-btn:not(:disabled):active,
-.touch-device .daw-shell .signal-drag-hint-first-dismiss:not(:disabled):active {
+.touch-device .daw-shell .track-del-btn:not(:disabled):active {
   transform: scale(0.95);
   transition: transform 80ms ease-out;
 }
@@ -43,11 +50,6 @@
   }
 
   .touch-device .daw-shell .hw-btn {
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  .touch-device .daw-shell .ms-btn {
     min-width: 44px;
     min-height: 44px;
   }

@@ -185,13 +185,13 @@ export default function TransportBar({
         </button>
 
         <button
-          className={`hw-btn hw-btn-sm transport-labelled-btn${metronomActive ? " active" : ""}`}
+          className={`hw-btn hw-btn-sm transport-labelled-btn transport-labelled-btn--icon-only${metronomActive ? " active" : ""}`}
           onClick={onMetronomToggle}
           title={metronomActive ? "Metronome on" : "Metronome off"}
           type="button"
+          aria-label={metronomActive ? "Metronome on" : "Metronome off"}
         >
           <TransportMetronome className="transport-glyph transport-glyph--sm" />
-          <span>Click</span>
         </button>
       </div>
 

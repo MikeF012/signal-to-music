@@ -5,29 +5,19 @@ import { PARAM_RANGES } from "../utils/ranges";
 
 const WAVEFORMS = ["sine", "cosine", "square", "custom"];
 
-const FIRST_DRAG_HINT_KEY = "signal-drag-to-timeline-hint-dismissed";
+const WAVE_CHIP_GLOW_SETTLE_MS = 160;
 
 export default function TrackEditor({
   track,
   onUpdate,
   touchUi = false,
+  knobSize = 58,
   onSynthTouchDragStart,
 }) {
   const chipArmRef = useRef(null); // touch synth drag hybrid: suppress duplicate HTML drag
+  const waveGlowTimerRef = useRef(null);
 
-  const [showDragHintBanner, setShowDragHintBanner] = useState(() => {
-    if (typeof localStorage === "undefined") return false;
-    try {
-      return localStorage.getItem(FIRST_DRAG_HINT_KEY) !== "1";
-    } catch {
-      return false;
-    }
-  });
-
-  function dismissDragHintBanner() {
-    try { localStorage.setItem(FIRST_DRAG_HINT_KEY, "1"); } catch {}
-    setShowDragHintBanner(false);
-  }
+  const [waveDragLit, setWaveDragLit] = useState(null);
 
   const [freqVal,  setFreqVal]  = useState("");
   const [ampVal,   setAmpVal]   = useState("");
@@ -56,6 +46,10 @@ export default function TrackEditor({
       setPhaseVal(String(track.phase));
     }
   }, [track]);
+
+  useEffect(() => () => {
+    if (waveGlowTimerRef.current != null) window.clearTimeout(waveGlowTimerRef.current);
+  }, []);
 
   if (!track) {
     return (
@@ -93,6 +87,22 @@ export default function TrackEditor({
     if (e.key === "Enter") { commit(); e.target.blur(); }
   }
 
+  function scheduleWaveGlowOff() {
+    if (waveGlowTimerRef.current != null) window.clearTimeout(waveGlowTimerRef.current);
+    waveGlowTimerRef.current = window.setTimeout(() => {
+      waveGlowTimerRef.current = null;
+      setWaveDragLit(null);
+    }, WAVE_CHIP_GLOW_SETTLE_MS);
+  }
+
+  function armWaveGlow(w) {
+    if (waveGlowTimerRef.current != null) {
+      window.clearTimeout(waveGlowTimerRef.current);
+      waveGlowTimerRef.current = null;
+    }
+    setWaveDragLit(w);
+  }
+
   function handleWaveDragStart(e, waveType) {
     e.dataTransfer.setData("wave-type", waveType);
     if (waveType === "custom") {
@@ -127,6 +137,15 @@ export default function TrackEditor({
     if (dx * dx + dy * dy < 100) return;
     arm.suppressNativeDrag = true;
 
+    armWaveGlow(w);
+    function endTouchGlow() {
+      window.removeEventListener("pointerup", endTouchGlow, true);
+      window.removeEventListener("pointercancel", endTouchGlow, true);
+      scheduleWaveGlowOff();
+    }
+    window.addEventListener("pointerup", endTouchGlow, true);
+    window.addEventListener("pointercancel", endTouchGlow, true);
+
     const previewTrack = {
       id: `${track.id}-synth-drag`,
       waveform: w === "custom" ? "custom" : w,
@@ -152,15 +171,6 @@ export default function TrackEditor({
 
   return (
     <div className="signal-panel" data-touch-signal-controls={touchUi ? "1" : "0"}>
-      {showDragHintBanner && (
-        <div className="signal-drag-hint-first" role="note">
-          <span className="signal-drag-hint-first-icon" aria-hidden>⇄</span>
-          <span className="signal-drag-hint-first-text">
-            Drag to timeline — grab a Wave chip below and drop it on a lane to place a signal block.
-          </span>
-          <button type="button" className="signal-drag-hint-first-dismiss" onClick={dismissDragHintBanner} aria-label="Dismiss hint">×</button>
-        </div>
-      )}
       <div className="signal-body">
 
         <div className="signal-waveform-block">
@@ -192,7 +202,7 @@ export default function TrackEditor({
               max={freqRange.max}
               step={freqRange.step}
               onChange={(v) => set("frequency", v)}
-              size={58}
+              size={knobSize}
               label=""
             />
             <input
@@ -218,7 +228,7 @@ export default function TrackEditor({
               max={ampRange.max}
               step={ampRange.step}
               onChange={(v) => set("amplitude", v)}
-              size={58}
+              size={knobSize}
               label=""
             />
             <input
@@ -244,7 +254,7 @@ export default function TrackEditor({
               max={phaseRange.max}
               step={phaseRange.step}
               onChange={(v) => set("phase", v)}
-              size={58}
+              size={knobSize}
               label=""
             />
             <input
@@ -268,7 +278,7 @@ export default function TrackEditor({
                   key={w}
                   type="button"
                   draggable
-                  className={`wave-btn wave-btn-tall interactive-press${track.waveform === w ? " active" : ""}`}
+                  className={`wave-btn wave-btn-tall interactive-press${waveDragLit === w ? " active" : ""}`}
                   onClick={() => set("waveform", w)}
                   title={`Set waveform to ${w} — or drag onto a track lane`}
                   onDragStart={(e) => {
@@ -276,8 +286,10 @@ export default function TrackEditor({
                       e.preventDefault();
                       return;
                     }
+                    armWaveGlow(w);
                     handleWaveDragStart(e, w);
                   }}
+                  onDragEnd={() => scheduleWaveGlowOff()}
                   onPointerDown={(e) => onWavePointerDown(e, w)}
                   onPointerMove={(e) => onWavePointerMove(e, w)}
                   onPointerUp={onWavePointerEnd}
