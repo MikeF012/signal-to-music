@@ -27,13 +27,10 @@ export default function AvatarMenu({
   user,
   displayName,
   onOpenAccount,
-  onOpenSettings,
   onOpenSongs,
   onSignIn,
   onSignOut,
   onOpenPresets,
-  onExportProjectJson,
-  onImportProject,
   onSaveCloudProject,
   userSignedIn,
 }) {
@@ -104,13 +101,7 @@ export default function AvatarMenu({
 
   const projectMenuSection = (
     <>
-      <SectionTitle>Project</SectionTitle>
-      <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onExportProjectJson)}>
-        <span className="avatar-menu-icon">⇩</span> Export JSON…
-      </button>
-      <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onImportProject)}>
-        <span className="avatar-menu-icon">⇧</span> Import JSON…
-      </button>
+      <SectionTitle>Projects</SectionTitle>
       <button
         type="button"
         className="avatar-menu-item"
@@ -134,15 +125,9 @@ export default function AvatarMenu({
           <span className="avatar-menu-icon">♪</span> My Saved Songs
         </button>
       ) : (
-        <>
-          <div className="avatar-menu-divider" />
-          <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onOpenSettings)}>
-            <span className="avatar-menu-icon">⚙</span> Settings
-          </button>
-          <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onSignIn)}>
-            <span className="avatar-menu-icon">↪</span> Sign In
-          </button>
-        </>
+        <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onSignIn)}>
+          <span className="avatar-menu-icon">↪</span> Sign In
+        </button>
       )}
     </>
   );
@@ -158,9 +143,6 @@ export default function AvatarMenu({
       <SectionTitle>Account</SectionTitle>
       <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onOpenAccount)}>
         <span className="avatar-menu-icon">👤</span> My Account
-      </button>
-      <button type="button" className="avatar-menu-item" role="menuitem" onClick={() => pick(onOpenSettings)}>
-        <span className="avatar-menu-icon">⚙</span> Settings
       </button>
       <div className="avatar-menu-divider" />
       <button type="button" className="avatar-menu-item danger" role="menuitem" onClick={() => pick(onSignOut)}>

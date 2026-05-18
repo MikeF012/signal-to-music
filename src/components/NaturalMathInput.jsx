@@ -26,8 +26,7 @@ export default function NaturalMathInput({ value, onChange, error, onCommit }) {
   const [keypadVisible, setKeypadVisible] = useState(false);
 
   const liveEval = useMemo(() => compileCustomFormula(value.trim() || ""), [value]);
-  const combinedError = error || liveEval.error;
-  const isValidFormula = Boolean(value.trim() && !combinedError);
+  const combinedError = (error || liveEval.error || "").trim();
 
   const moveCursor = useRef(null);
 
@@ -125,7 +124,7 @@ export default function NaturalMathInput({ value, onChange, error, onCommit }) {
   }, [onCommit]);
 
   return (
-    <div className="natural-math-editor">
+    <div className="natural-math-editor natural-math-editor--compact">
       <input
         ref={inputRef}
         className="formula-input formula-input--touch formula-input--no-os-kb"
@@ -141,7 +140,7 @@ export default function NaturalMathInput({ value, onChange, error, onCommit }) {
         onFocus={() => {
           cancelBlurHide();
           setKeypadVisible(true);
-          if (narrowVp) inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+          if (narrowVp) inputRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
           try {
             const el = inputRef.current;
             if (!el) return;
@@ -150,19 +149,13 @@ export default function NaturalMathInput({ value, onChange, error, onCommit }) {
           } catch { /* noop */ }
         }}
         onBlur={() => scheduleBlurHide()}
-        placeholder="sin(t) + 0.5sin(2t)  or  sin(t)e^-4t"
-        title="Use the on-screen keypad (OS keyboard stays off for a stable viewport)."
+        placeholder="sin(t)"
+        title="Scientific keypad (OS keyboard stays off)."
       />
 
-
-
-      <div className={`formula-live-status ${isValidFormula ? "ok" : "bad"}`} aria-live="polite">
-        {isValidFormula ? (
-          <span className="formula-ok-mark" title="Valid formula">✓</span>
-        ) : (
-          <span className="formula-live-err">{combinedError || (value.trim() ? "Invalid formula" : "\u00a0")}</span>
-        )}
-      </div>
+      {combinedError ? (
+        <p className="formula-inline-error" role="status">{combinedError}</p>
+      ) : null}
 
       {keypadVisible && (
         <div
@@ -182,8 +175,6 @@ export default function NaturalMathInput({ value, onChange, error, onCommit }) {
           />
         </div>
       )}
-
-      {error && <p className="formula-error">{error}</p>}
     </div>
   );
 }

@@ -5,7 +5,12 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores([
+    'dist',
+    /** Capacitor / Gradle emits vendored bundles here — causes thousands of bogus lint hits */
+    'android/**',
+    '**/android/**',
+  ]),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

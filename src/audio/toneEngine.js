@@ -222,16 +222,18 @@ function scheduleMetronomClick(time, isDownbeat) {
   const gain = audioCtx.createGain();
   osc.connect(gain);
   gain.connect(audioCtx.destination);
-  osc.type = "sine";
-  osc.frequency.value = isDownbeat ? 880 : 660;
-  gain.gain.setValueAtTime(0.35, time);
-  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.07);
+  osc.type = "square";
+  osc.frequency.value = isDownbeat ? 2400 : 1800;
+  const atk = Math.min(0.005, audioCtx.sampleRate > 0 ? 2 / audioCtx.sampleRate : 0.001);
+  gain.gain.setValueAtTime(0, time);
+  gain.gain.linearRampToValueAtTime(isDownbeat ? 0.42 : 0.32, time + atk);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.028);
   osc.start(time);
-  osc.stop(time + 0.07);
+  osc.stop(time + 0.032);
 }
 
 function runMetronomLookahead() {
-  if (!audioCtx || !metronomActive) return;
+  if (!audioCtx || !metronomActive || !playing) return;
   const now       = audioCtx.currentTime;
   const lookahead = 0.12;
   const beatDur   = 60 / metronomBpm;

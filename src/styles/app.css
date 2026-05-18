@@ -45,8 +45,8 @@
   --track-h:    78px;
   --ruler-h:    32px;
   --sidebar-w:  256px;
-  --transport-h: 72px;
-  --vis-h:      150px;
+  --transport-h: 58px;
+  --vis-h:      120px;
   --signal-h:   248px;
 
   /* Typography */
@@ -65,8 +65,8 @@
 ═══════════════════════════════════════════════════════════════ */
 @media (min-width: 1024px) {
   :root {
-    --vis-h: clamp(172px, 20vh, 208px);
-    --transport-h: clamp(82px, 10vh, 96px);
+    --vis-h: clamp(138px, 16vh, 166px);
+    --transport-h: clamp(66px, 8vh, 77px);
     --signal-h: clamp(174px, 21vh, 214px);
     --ruler-h: 32px;
     --sidebar-w: clamp(258px, 22vw, 282px);
@@ -95,8 +95,8 @@
   }
 
   .hw-btn-icon {
-    width: 46px;
-    height: 46px;
+    width: 37px;
+    height: 37px;
     flex-shrink: 0;
   }
 
@@ -1059,6 +1059,46 @@ body {
   white-space: nowrap;
 }
 
+.signal-formula-section--compact {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.signal-formula-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.signal-formula-label-inline {
+  flex-shrink: 0;
+  margin: 0;
+  padding-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--mint);
+  letter-spacing: .02em;
+  line-height: 1;
+  cursor: default;
+}
+
+.formula-inline-error {
+  margin: 0;
+  padding: 0 2px;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: #ff4d6a;
+}
+
+.natural-math-editor--compact {
+  gap: 2px;
+}
+
 .formula-wrap-full {
   flex: 1;
   min-width: 0;
@@ -1380,11 +1420,20 @@ body {
 .ruler-strip {
   height: var(--ruler-h);
   flex-shrink: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  scrollbar-gutter: stable;
   background: #0a0608;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
   user-select: none;
+  touch-action: pan-x pinch-zoom;
+  -webkit-overflow-scrolling: touch;
+}
+.ruler-strip::-webkit-scrollbar {
+  height: 0;
+  display: none;
 }
 
 .ruler-strip:hover { background: #0e0a0c; }
@@ -1393,7 +1442,11 @@ body {
   flex: 1;
   overflow: auto;
   scrollbar-width: thin;
+  scrollbar-gutter: stable;
   scrollbar-color: #2e1a22 transparent;
+  touch-action: pan-x pan-y pinch-zoom;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .lanes-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -1438,18 +1491,26 @@ body {
   mix-blend-mode: multiply;
 }
 
-/* Warm subtle grid */
+/* Warm subtle grid — beat lines + bar emphasis (matches ruler) */
 .timeline-lane::after {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: repeating-linear-gradient(
-    90deg,
-    transparent 0px,
-    transparent calc(var(--bar-px, 160px) - 1px),
-    rgba(74,42,60,.3) calc(var(--bar-px, 160px) - 1px),
-    rgba(74,42,60,.3) var(--bar-px, 160px)
-  );
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent calc(var(--beat-px, 40px) - 1px),
+      rgba(74,42,60,.22) calc(var(--beat-px, 40px) - 1px),
+      rgba(74,42,60,.22) var(--beat-px, 40px)
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent calc(var(--bar-px, 160px) - 1px),
+      rgba(112,74,94,.52) calc(var(--bar-px, 160px) - 1px),
+      rgba(112,74,94,.52) var(--bar-px, 160px)
+    );
   pointer-events: none;
   z-index: 2;
 }
@@ -2261,7 +2322,7 @@ body {
     0 0 16px rgba(220,40,0,.28);
 }
 
-.decade-80s .hw-btn-icon { border-radius: 0; width: 38px; height: 38px; font-size: 1rem; }
+.decade-80s .hw-btn-icon { border-radius: 0; font-size: 1rem; }
 
 /* ── SIGNAL PANEL — parameter display ──────────────────────────────── */
 
@@ -2544,13 +2605,21 @@ body {
   );
 }
 .decade-80s .timeline-lane::after {
-  background-image: repeating-linear-gradient(
-    90deg,
-    transparent 0px,
-    transparent calc(var(--bar-px, 160px) - 1px),
-    rgba(60, 50, 30, .28) calc(var(--bar-px, 160px) - 1px),
-    rgba(60, 50, 30, .28) var(--bar-px, 160px)
-  );
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent calc(var(--beat-px, 40px) - 1px),
+      rgba(80,70,52,.26) calc(var(--beat-px, 40px) - 1px),
+      rgba(80,70,52,.26) var(--beat-px, 40px)
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent calc(var(--bar-px, 160px) - 1px),
+      rgba(60,50,30,.55) calc(var(--bar-px, 160px) - 1px),
+      rgba(60,50,30,.55) var(--bar-px, 160px)
+    );
 }
 .decade-80s .timeline-lane:hover    { background: #121008; }
 .decade-80s .timeline-lane.selected { background: #141210; }
@@ -3151,7 +3220,7 @@ body {
   box-shadow: 0 0 18px rgba(255,60,60,.45), inset 0 1px 0 rgba(255,255,255,.25);
   text-shadow: 0 0 8px rgba(255,80,80,.9);
 }
-.decade-90s-2000s .hw-btn-icon { border-radius: 50%; width: 38px; height: 38px; font-size: 1rem; }
+.decade-90s-2000s .hw-btn-icon { border-radius: 50%; font-size: 1rem; }
 
 /* ── SIGNAL PANEL — frosted glass dark navy ─────────────────────────── */
 
@@ -3440,13 +3509,21 @@ body {
   border-bottom: 1px solid rgba(255,255,255,.04);
 }
 .decade-90s-2000s .timeline-lane::after {
-  background-image: repeating-linear-gradient(
-    90deg,
-    transparent 0px,
-    transparent calc(var(--bar-px, 160px) - 1px),
-    rgba(40,80,140,.35) calc(var(--bar-px, 160px) - 1px),
-    rgba(40,80,140,.35) var(--bar-px, 160px)
-  );
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent calc(var(--beat-px, 40px) - 1px),
+      rgba(42,92,148,.26) calc(var(--beat-px, 40px) - 1px),
+      rgba(42,92,148,.26) var(--beat-px, 40px)
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent calc(var(--bar-px, 160px) - 1px),
+      rgba(40,80,140,.55) calc(var(--bar-px, 160px) - 1px),
+      rgba(40,80,140,.55) var(--bar-px, 160px)
+    );
 }
 .decade-90s-2000s .timeline-lane:hover    { background: rgba(14,24,48,.88); }
 .decade-90s-2000s .timeline-lane.selected { background: rgba(18,30,58,.9); }
@@ -3884,8 +3961,6 @@ body {
 }
 .decade-2010s .hw-btn-icon {
   border-radius: 2px;
-  width: 32px;
-  height: 28px;
   font-size: .9rem;
 }
 
@@ -4171,13 +4246,21 @@ body {
   background: #1a1a1a;
 }
 .decade-2010s .timeline-lane::after {
-  background-image: repeating-linear-gradient(
-    90deg,
-    transparent 0px,
-    transparent calc(var(--bar-px, 160px) - 1px),
-    #2e2e2e calc(var(--bar-px, 160px) - 1px),
-    #2e2e2e var(--bar-px, 160px)
-  );
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent calc(var(--beat-px, 40px) - 1px),
+      rgba(60,60,60,.72) calc(var(--beat-px, 40px) - 1px),
+      rgba(60,60,60,.72) var(--beat-px, 40px)
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent calc(var(--bar-px, 160px) - 1px),
+      rgba(74,74,74,.92) calc(var(--bar-px, 160px) - 1px),
+      rgba(74,74,74,.92) var(--bar-px, 160px)
+    );
 }
 .decade-2010s .timeline-lane:hover    { background: #222; }
 .decade-2010s .timeline-lane.selected { background: #222; }
@@ -5530,8 +5613,8 @@ body {
 /* Mobile (override / extend earlier rules) */
 @media (max-width: 768px) {
   :root {
-    --vis-h:       74px;
-    --transport-h: 44px;
+    --vis-h:       52px;
+    --transport-h: 35px;
     --track-h:     50px;
     --ruler-h:     32px;
     --signal-h:    auto;
@@ -5627,6 +5710,16 @@ body {
     -webkit-overflow-scrolling: touch;
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
+
+  .daw.daw-shell {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .daw.daw-shell > .daw-main.daw-tracks-area { order: 1; }
+  .daw.daw-shell > .transport-bar { order: 2; }
+  .daw.daw-shell > .signal-panel-shell { order: 3; }
+  .daw.daw-shell > .visualizer-wrap { order: 4; }
 
   .daw-main {
     flex: 1 1 auto;
@@ -5976,6 +6069,36 @@ body {
 
 .decade-90s-2000s.rotate-device-gate .rotate-device-title { color: #aaff00; }
 .decade-90s-2000s.rotate-device-gate .rotate-device-phone { color: #aaff00; }
+
+/* ── Mobile WebView: sidebar vertical scroll ── */
+.sidebar-tracks {
+  touch-action: pan-y pinch-zoom;
+  overscroll-behavior: contain;
+}
+
+/* ── CSS “landscape lock” when hardware is portrait ── */
+@media screen and (max-width: 1024px) and (orientation: portrait) {
+  html {
+    height: 100%;
+    overflow: hidden;
+  }
+  body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+  #root {
+    position: fixed;
+    width: 100vh;
+    height: 100vw;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(90deg);
+    transform-origin: center center;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+}
 
 
 

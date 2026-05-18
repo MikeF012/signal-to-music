@@ -167,25 +167,23 @@ export default function TrackEditor({
       <div className="signal-body">
 
         <div className="signal-waveform-block">
-
-          <div className="signal-formula-section">
-            <div className="signal-formula-header">
-              <span className="signal-formula-label">f(t) =</span>
-            </div>
-            <div className="formula-wrap formula-wrap-full">
-              <NaturalMathInput
-                value={track.customFormula}
-                onChange={(v) => set("customFormula", v)}
-                error={track.waveform === "custom" ? (track.formulaError ?? "") : ""}
-                onCommit={(raw) => {
-                  const trimmed = raw.trim();
-                  const formula = trimmed.length ? trimmed : "sin(t)";
-                  onUpdate(track.id, { customFormula: formula, waveform: "custom" });
-                }}
-              />
-            </div>
+          <div className="signal-formula-section signal-formula-section--compact">
+            <label className="signal-formula-row">
+              <span className="signal-formula-label-inline">f(t)=</span>
+              <div className="formula-wrap formula-wrap-full">
+                <NaturalMathInput
+                  value={track.customFormula}
+                  onChange={(v) => set("customFormula", v)}
+                  error={track.waveform === "custom" ? (track.formulaError ?? "") : ""}
+                  onCommit={(raw) => {
+                    const trimmed = raw.trim();
+                    const formula = trimmed.length ? trimmed : "sin(t)";
+                    onUpdate(track.id, { customFormula: formula, waveform: "custom" });
+                  }}
+                />
+              </div>
+            </label>
           </div>
-
         </div>
 
         <div className="signal-knobs-row">

@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useInsertionEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useDAWState }       from "./state/useDAWState";
 import { useAuth }           from "./hooks/useAuth";
@@ -29,7 +29,6 @@ import Timeline          from "./components/Timeline";
 import TrackEditor       from "./components/TrackEditor";
 import AvatarMenu        from "./components/AvatarMenu";
 import OfflineBadge      from "./components/OfflineBadge";
-import PortraitGate      from "./components/PortraitGate";
 import BlockSelectionHint from "./components/BlockSelectionHint";
 import SplashScreen      from "./components/SplashScreen";
 
@@ -83,7 +82,6 @@ export default function App() {
   const [analyser,        setAnalyser]        = useState(null);
   const [countIn,         setCountIn]         = useState(null);
   const [recordedReview,  setRecordedReview]  = useState(null); // { blob, duration, extension?, mime? }
-  const [tourVariant,     setTourVariant]      = useState("choose"); // choose | quick | full
 
   const [showSplash, setShowSplash] = useState(() => {
     if (import.meta.hot?.data?.skipCompanySplash) return false;
@@ -93,6 +91,7 @@ export default function App() {
   const sidebarScrollRef = useRef(null);
   const countInTimer     = useRef(null);
   const fileInputRef     = useRef(null);
+  const handlePlayRef    = useRef(() => Promise.resolve());
 
   // ── Compile track formulas ──────────────────────────────────────────
   const compiledTracks = useMemo(
@@ -138,10 +137,7 @@ export default function App() {
   // ── First-run tutorial (localStorage; see utils/firstVisitTutorial)
   useEffect(() => {
     if (hasCompletedFirstTutorial()) return;
-    const t = setTimeout(() => {
-      setTourVariant("choose");
-      setShowTour(true);
-    }, 600);
+    const t = setTimeout(() => setShowTour(true), 600);
     return () => clearTimeout(t);
   }, []);
 
@@ -187,19 +183,6 @@ export default function App() {
     disposeAudio();
     if (countInTimer.current) clearTimeout(countInTimer.current);
   }, []);
-
-  // ── Keyboard shortcut: Space ─────────────────────────────────────────
-  useEffect(() => {
-    function onKey(e) {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-      if (e.code === "Space") {
-        e.preventDefault();
-        state.isPlaying ? handleStop() : handlePlay();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [state.isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     function onKey(e) {
@@ -290,7 +273,24 @@ export default function App() {
   // Transport
   // ──────────────────────────────────────────────────────────────────────
 
+  function pauseTransportAtPlayhead() {
+    const savedTime = getPlayheadTime();
+    stopPlayback();
+    setMetronome(false, state.bpm);
+    actions.setIsPlaying(false);
+    actions.setCurrentTime(savedTime);
+    if (countInTimer.current) {
+      clearTimeout(countInTimer.current);
+      countInTimer.current = null;
+    }
+    setCountIn(null);
+  }
+
   async function handlePlay() {
+    if (state.isPlaying) {
+      pauseTransportAtPlayhead();
+      return;
+    }
     await initAudio();
     setAnalyser(getAnalyser());
     startPlayback(state.currentTime);
@@ -301,13 +301,7 @@ export default function App() {
   }
 
   function handleStop() {
-    const savedTime = getPlayheadTime(); // capture engine position before halting
-    stopPlayback();
-    setMetronome(false, state.bpm);
-    actions.setIsPlaying(false);
-    actions.setCurrentTime(savedTime);  // persist so Play resumes from here
-    if (countInTimer.current) { clearTimeout(countInTimer.current); countInTimer.current = null; }
-    setCountIn(null);
+    pauseTransportAtPlayhead();
   }
 
   function handleSeek(time) {
@@ -358,6 +352,22 @@ export default function App() {
 
   function handleLoopToggle()      { actions.setLoopActive(!state.loopActive); }
   function handleMetronomToggle()  { actions.setMetronomActive(!state.metronomActive); }
+
+  useInsertionEffect(() => {
+    handlePlayRef.current = handlePlay;
+  }, [handlePlay]);
+
+  useEffect(() => {
+    function onKey(e) {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        void handlePlayRef.current();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // ──────────────────────────────────────────────────────────────────────
   // Project save / open
@@ -554,21 +564,7 @@ export default function App() {
           }}
         />
       )}
-    <div className={`daw decade-${prefs.decadeTheme} daw-shell`} data-decade={prefs.decadeTheme}>
-      {/* Hidden file input for Open Project */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json,.signal,application/json"
-        style={{ display: "none" }}
-        onChange={(e) => {
-          handleOpenProjectFile(e.target.files?.[0]);
-          e.target.value = "";
-        }}
-      />
-
       <OfflineBadge online={online} supabaseEnabled={supabaseEnabled} />
-      <PortraitGate decade={prefs.decadeTheme} />
 
       {synthTouchOverlay?.active && (
         <SynthChipTouchPreview
@@ -590,6 +586,19 @@ export default function App() {
           }
         />
       )}
+
+      <div className={`daw decade-${prefs.decadeTheme} daw-shell`} data-decade={prefs.decadeTheme}>
+      {/* Hidden file input for Open Project */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,.signal,application/json"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          handleOpenProjectFile(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
 
       {/* ── Master Visualizer ── */}
       <div className="visualizer-wrap" data-tour="visualizer">
@@ -619,6 +628,9 @@ export default function App() {
         onMetronomToggle={handleMetronomToggle}
         onProjectNameChange={actions.setProjectName}
         onOpenMic={() => setShowMic(true)}
+        onSaveSession={handleExportProjectJson}
+        onOpenSession={pickProjectFile}
+        onOpenSettings={() => setShowSettings(true)}
         currentDecade={prefs.decadeTheme}
         onDecadeChange={(id) => setPrefs({ decadeTheme: id })}
         rightSlot={
@@ -630,11 +642,8 @@ export default function App() {
               onSignIn={() => setShowAuth(true)}
               onSignOut={logout}
               onOpenAccount={() => { setShowSettings(true); }}
-              onOpenSettings={() => setShowSettings(true)}
               onOpenSongs={() => setShowSongs(true)}
               onOpenPresets={() => setShowPresets(true)}
-              onExportProjectJson={handleExportProjectJson}
-              onImportProject={pickProjectFile}
               onSaveCloudProject={handleSaveCloudProject}
             />
           )
@@ -642,7 +651,7 @@ export default function App() {
       />
 
       {/* ── Signal Panel ── */}
-      <div data-tour="signal-panel">
+      <div className="signal-panel-shell" data-tour="signal-panel">
         <TrackEditor
           track={selectedTrack}
           onUpdate={actions.updateTrack}
@@ -806,20 +815,13 @@ export default function App() {
             cloudTotalDuration={cloudTotalDuration}
             cloudSyncing={songsSyncing}
             onClearLocalCache={clearLocalCache}
-            onReplayTutorialQuick={() => {
+            onReplayTutorial={() => {
               setShowSettings(false);
-              setTourVariant("quick");
-              setShowTour(true);
-            }}
-            onReplayTutorialFull={() => {
-              setShowSettings(false);
-              setTourVariant("full");
               setShowTour(true);
             }}
             onResetFirstTutorialFlag={() => {
               resetFirstTutorialFlagForTesting();
               setShowSettings(false);
-              setTourVariant("choose");
               setShowTour(true);
             }}
           />
@@ -913,11 +915,11 @@ export default function App() {
         {showTour && (
           <TutorialTour
             open
-            variant={tourVariant}
+            touchUi={touchUi}
+            onOpenAuth={() => { setShowAuth(true); }}
             onClose={() => {
               markFirstTutorialSeen();
               setShowTour(false);
-              setTourVariant("choose");
               setPrefs({ showTutorial: false });
             }}
           />

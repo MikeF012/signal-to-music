@@ -10,6 +10,9 @@ import {
   TransportSkipEnd,
   TransportSkipStart,
   TransportStop,
+  TransportSaveDisk,
+  TransportFolder,
+  TransportGear,
 } from "./icons/TransportGlyphs";
 
 function pad(n, dec = 0) {
@@ -45,7 +48,10 @@ export default function TransportBar({
   onLoopToggle,
   onMetronomToggle,
   onProjectNameChange,
+  onSaveSession,
+  onOpenSession,
   onOpenMic,
+  onOpenSettings,
   rightSlot,
   currentDecade,
   onDecadeChange,
@@ -95,7 +101,7 @@ export default function TransportBar({
         <button
           className={`hw-btn hw-btn-icon${isPlaying ? " active-mint" : ""}`}
           onClick={onPlay}
-          title="Play (Space)"
+          title={isPlaying ? "Pause" : "Play"}
           type="button"
         >
           {isPlaying
@@ -106,7 +112,7 @@ export default function TransportBar({
         <button
           className="hw-btn hw-btn-icon transport-stop-btn"
           onClick={onStop}
-          title="Stop (Space)"
+          title="Stop — halts playback at current playhead"
           type="button"
         >
           <TransportStop className="transport-glyph" />
@@ -245,7 +251,25 @@ export default function TransportBar({
 
       <div className="transport-divider" />
 
-      <div className="transport-btn-group">
+      <div className="transport-btn-group transport-session-group">
+        <button
+          type="button"
+          className="hw-btn hw-btn-sm transport-labelled-btn"
+          onClick={onSaveSession}
+          title="Download session as JSON to this device"
+        >
+          <TransportSaveDisk className="transport-glyph transport-glyph--sm" />
+          <span>Save</span>
+        </button>
+        <button
+          type="button"
+          className="hw-btn hw-btn-sm transport-labelled-btn"
+          onClick={onOpenSession}
+          title="Load a Signal JSON session from disk"
+        >
+          <TransportFolder className="transport-glyph transport-glyph--sm" />
+          <span>Open</span>
+        </button>
         <button
           type="button"
           className="hw-btn hw-btn-sm transport-labelled-btn"
@@ -258,6 +282,16 @@ export default function TransportBar({
       </div>
 
       <div className="transport-bar-end">
+        <button
+          type="button"
+          className="hw-btn hw-btn-icon transport-settings-btn"
+          onClick={onOpenSettings}
+          title="Settings"
+          aria-label="Settings"
+          data-tour="settings-btn"
+        >
+          <TransportGear className="transport-glyph" />
+        </button>
         <AppearancePicker activeTheme={currentDecade} onThemeChange={onDecadeChange} />
         <div className="transport-avatar-slot">{rightSlot}</div>
       </div>

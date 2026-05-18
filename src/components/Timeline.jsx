@@ -391,8 +391,10 @@ const Timeline = forwardRef(function Timeline({
     window.addEventListener("pointerup",   onGlobalUp);
   }, [zoom, getTrackIdAtY, onMoveBlock, onMoveBlockToTrack]);
 
-  // ── Bar-width CSS custom property for lane grid ──────────────────────
-  const barPx = ((60 / bpm) * 4 * zoom).toFixed(2);
+  // ── Beat + bar widths (px) for lane grid ────────────────────────────
+  const beatDur = 60 / bpm;
+  const beatPx = (beatDur * zoom).toFixed(4);
+  const barPx = (beatDur * 4 * zoom).toFixed(4);
 
   return (
     <div className="timeline-area">
@@ -401,7 +403,6 @@ const Timeline = forwardRef(function Timeline({
         ref={rulerRef}
         className="ruler-strip"
         onPointerDown={handleRulerPointerDown}
-        style={{ overflowX: "hidden", overflowY: "hidden" }}
       >
         <Ruler bpm={bpm} zoom={zoom} totalWidth={totalWidth} />
       </div>
@@ -437,7 +438,7 @@ const Timeline = forwardRef(function Timeline({
                 track.muted ? "muted" : "",
                 laneFlash?.trackId === track.id ? "lane-drop-flash" : "",
               ].join(" ").trim()}
-              style={{ height: TRACK_HEIGHT, "--bar-px": `${barPx}px` }}
+              style={{ height: TRACK_HEIGHT, "--bar-px": `${barPx}px`, "--beat-px": `${beatPx}px` }}
               onClick={(e) => handleLaneClick(e, track.id)}
               onContextMenu={(e) => handleLaneContextMenu(e, track.id)}
               onDragOver={handleLaneDragOver}
