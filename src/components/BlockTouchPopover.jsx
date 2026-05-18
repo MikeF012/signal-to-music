@@ -7,6 +7,7 @@ export default function BlockTouchPopover({
   open,
   anchor, // { clientX, clientY }
   actions,
+  themeDecade = "",
   onClose,
 }) {
   const wrapRef = useRef(null);
@@ -55,7 +56,10 @@ export default function BlockTouchPopover({
   return (
     <div
       ref={wrapRef}
-      className="block-touch-popover"
+      className={[
+        "block-touch-popover",
+        themeDecade ? `decade-${themeDecade}` : "",
+      ].filter(Boolean).join(" ")}
       style={{ position: "fixed", zIndex: 450, ...style }}
       role="dialog"
       aria-modal="true"

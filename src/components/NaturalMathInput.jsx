@@ -19,14 +19,18 @@ function useNarrowViewport768() {
   return narrow;
 }
 
-export default function NaturalMathInput({ value, onChange, error, onCommit }) {
+export default function NaturalMathInput({ value, onChange, error, onCommit, placeholder }) {
   const inputRef = useRef(null);
   const blurTimer = useRef(null);
   const narrowVp = useNarrowViewport768();
   const [keypadVisible, setKeypadVisible] = useState(false);
 
   const liveEval = useMemo(() => compileCustomFormula(value.trim() || ""), [value]);
-  const combinedError = (error || liveEval.error || "").trim();
+
+  const typed = value.trim().length > 0;
+  const combinedError = typed
+    ? ((error || "").trim() || (liveEval.error || "").trim()).trim()
+    : "";
 
   const moveCursor = useRef(null);
 
@@ -149,7 +153,7 @@ export default function NaturalMathInput({ value, onChange, error, onCommit }) {
           } catch { /* noop */ }
         }}
         onBlur={() => scheduleBlurHide()}
-        placeholder="sin(t)"
+        placeholder={placeholder ?? "e.g. sin(t) + cos(2*t)"}
         title="Scientific keypad (OS keyboard stays off)."
       />
 

@@ -154,10 +154,17 @@ export function compileCustomFormula(rawExpression) {
   const expression = String(rawExpression ?? "").trim();
 
   if (!expression) {
-    return {
-      evaluator: null,
-      error: "Enter a formula for custom waveform (example: sin(t) + 0.5*sin(2*t)).",
-    };
+    try {
+      const compiled = new Function(
+        "t", "x", "y", "sin", "cos", "tan", "abs", "sqrt", "pow", "exp", "log", "min", "max", "pi", "e",
+        `"use strict"; return (sin(t));`
+      );
+      const evaluator = (t) =>
+        compiled(t, t, t, Math.sin, Math.cos, Math.tan, Math.abs, Math.sqrt, Math.pow, Math.exp, Math.log, Math.min, Math.max, Math.PI, Math.E);
+      return { evaluator, error: "" };
+    } catch {
+      return { evaluator: null, error: "" };
+    }
   }
 
   if (!/^[0-9+\-*/^().,\sA-Za-z]*$/.test(expression)) {

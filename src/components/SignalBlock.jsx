@@ -208,6 +208,7 @@ function SignalBlock({
   bpm,
   currentTime,
   touchUi = false,
+  themeDecade = "",
   clipboard,
   isSelected,
   onSelect,
@@ -290,16 +291,17 @@ function SignalBlock({
 
   function handleMovePointerDown(e) {
     if (e.pointerType === "mouse" && e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    onSelect?.(Boolean(e.shiftKey));
-
     const isTouchLike = touchUi && e.pointerType === "touch";
 
     if (!isTouchLike) {
+      e.preventDefault();
+      e.stopPropagation();
+      onSelect?.(Boolean(e.shiftKey));
       attachGlobalBlockDrag(e);
       return;
     }
+
+    onSelect?.(Boolean(e.shiftKey));
 
     touchAnchorRef.current = { clientX: e.clientX, clientY: e.clientY };
 
@@ -315,9 +317,6 @@ function SignalBlock({
       startY: e.clientY,
       lifted: false,
     };
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch { /* noop */ }
   }
 
   function handleMovePointerMove(e) {
@@ -330,9 +329,6 @@ function SignalBlock({
       clearLongPressTimer();
       arm.lifted = true;
       attachGlobalBlockDrag(e);
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch { /* noop */ }
     }
   }
 
@@ -340,9 +336,6 @@ function SignalBlock({
     const arm = touchDragArmRef.current;
     if (arm?.pointerId === e.pointerId) {
       touchDragArmRef.current = null;
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch { /* noop */ }
     }
     clearLongPressTimer();
   }
@@ -477,6 +470,7 @@ function SignalBlock({
           open={touchPopoverOpen}
           anchor={touchAnchorState}
           actions={sheetActions}
+          themeDecade={themeDecade}
           onClose={() => setTouchPopoverOpen(false)}
         />
       )}

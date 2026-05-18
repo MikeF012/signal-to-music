@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import SignalBlock from "./SignalBlock";
 import { getPlayheadTime, enginePlaybackActive } from "../audio/toneEngine";
 import { TRACK_HEIGHT, RULER_HEIGHT, TIMELINE_DURATION } from "../utils/ranges";
@@ -85,6 +85,7 @@ const Timeline = forwardRef(function Timeline({
   selectedBlocks,
   clipboard,
   touchUi = false,
+  themeDecade = "",
   onClearBlockSelection,
   onSelectTrack,
   onAddBlock,
@@ -135,6 +136,29 @@ const Timeline = forwardRef(function Timeline({
     return () => window.clearTimeout(tid);
   }, [laneFlash]);
 
+  const [laneRowPx, setLaneRowPx] = useState(TRACK_HEIGHT);
+
+  useLayoutEffect(() => {
+    const lanesEl = lanesRef.current;
+    if (!lanesEl) return undefined;
+
+    function measure() {
+      const lane = lanesEl.querySelector(".timeline-lane");
+      if (!lane) return;
+      const h = lane.getBoundingClientRect().height;
+      if (h > 0) setLaneRowPx((prev) => (Math.abs(prev - h) < 0.5 ? prev : h));
+    }
+
+    measure();
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(lanesEl);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [tracks.length, zoom]);
+
   useImperativeHandle(ref, () => ({
     resolveDrop(clientX, clientY) {
       const lanesEl = lanesRef.current;
@@ -149,7 +173,7 @@ const Timeline = forwardRef(function Timeline({
         return null;
       const x = clientX - rect.left + lanesEl.scrollLeft;
       const y = clientY - rect.top + lanesEl.scrollTop;
-      const idx = Math.floor(y / TRACK_HEIGHT);
+      const idx = Math.floor(y / laneRowPx);
       const trackId = tracks[idx]?.id ?? null;
       if (!trackId) return null;
       const rawTime = Math.max(0, x / zoom);
@@ -159,7 +183,7 @@ const Timeline = forwardRef(function Timeline({
     flashLane(trackId) {
       if (trackId) setLaneFlash({ trackId, key: nextLaneFlashKey() });
     },
-  }), [tracks, zoom, bpm]);
+  }), [tracks, zoom, bpm, laneRowPx]);
 
   useEffect(() => {
     if (!laneMenu) return;
@@ -182,7 +206,7 @@ const Timeline = forwardRef(function Timeline({
   // dragRef.current = { blockId, trackId, startX, startTime, currentTrackId }
 
   const totalWidth  = TIMELINE_DURATION * zoom;
-  const totalHeight = tracks.length * TRACK_HEIGHT;
+  const totalHeight = tracks.length * laneRowPx;
 
   // ── Scroll sync ──────────────────────────────────────────────────────
   function handleLanesScroll(e) {
@@ -346,9 +370,9 @@ const Timeline = forwardRef(function Timeline({
     const bcr      = lanesEl.getBoundingClientRect();
     const scrollTop = lanesEl.scrollTop;
     const relY     = clientY - bcr.top + scrollTop;
-    const idx      = Math.max(0, Math.min(tracks.length - 1, Math.floor(relY / TRACK_HEIGHT)));
+    const idx      = Math.max(0, Math.min(tracks.length - 1, Math.floor(relY / laneRowPx)));
     return tracks[idx]?.id ?? null;
-  }, [tracks]);
+  }, [tracks, laneRowPx]);
 
   // Block signals drag start — we register global handlers
   const handleBlockDragStart = useCallback((e, blockId, trackId, startTime) => {
@@ -438,7 +462,7 @@ const Timeline = forwardRef(function Timeline({
                 track.muted ? "muted" : "",
                 laneFlash?.trackId === track.id ? "lane-drop-flash" : "",
               ].join(" ").trim()}
-              style={{ height: TRACK_HEIGHT, "--bar-px": `${barPx}px`, "--beat-px": `${beatPx}px` }}
+              style={{ "--bar-px": `${barPx}px`, "--beat-px": `${beatPx}px` }}
               onClick={(e) => handleLaneClick(e, track.id)}
               onContextMenu={(e) => handleLaneContextMenu(e, track.id)}
               onDragOver={handleLaneDragOver}
@@ -455,6 +479,7 @@ const Timeline = forwardRef(function Timeline({
                   bpm={bpm}
                   currentTime={currentTime}
                   touchUi={touchUi}
+                  themeDecade={themeDecade}
                   clipboard={clipboard}
                   isSelected={selectionKeys.has(`${track.id}:${block.id}`)}
                   onSelect={(shift) => onSelectBlock?.(track.id, block.id, shift)}

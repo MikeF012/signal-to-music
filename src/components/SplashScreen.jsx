@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import bundledCompanyLogo from "../assets/company-logo.png";
 import "./SplashScreen.css";
 
 const FADE_MS = 800;
@@ -9,20 +8,19 @@ const TOTAL_MS = FADE_MS + HOLD_MS + FADE_MS;
 function publicLogoHref() {
   const base = import.meta.env.BASE_URL || "/";
   const trimmed = base.endsWith("/") ? base.slice(0, -1) : base;
-  const prefix = trimmed === "" ? "" : trimmed;
-  return `${prefix}/company-logo.png`;
+  return `${trimmed || ""}/company-logo.png`;
 }
 
 /**
- * Splash uses `/company-logo.png` (copied into `public/`) first so Capacitor WebView resolves a stable absolute URL;
- * bundled import acts as fallback if the public file is missing.
+ * Splash uses `/company-logo.png` from `public/` so Capacitor WebView resolves a stable absolute URL.
  */
 export default function SplashScreen({ onComplete }) {
   const [logoIn, setLogoIn] = useState(false);
   const [exiting, setExiting] = useState(false);
   const finishedRef = useRef(false);
-  const triedFallbackRef = useRef(false);
-  const [logoSrc, setLogoSrc] = useState(publicLogoHref());
+
+  /** Root-relative `/company-logo.png` (respects Vite base). */
+  const logoSrc = publicLogoHref();
 
   function finish() {
     if (finishedRef.current) return;
@@ -30,10 +28,8 @@ export default function SplashScreen({ onComplete }) {
     onComplete?.();
   }
 
-  function handleLogoError() {
-    if (triedFallbackRef.current) return;
-    triedFallbackRef.current = true;
-    setLogoSrc(bundledCompanyLogo);
+  function handleLogoError(ev) {
+    console.error("[SplashScreen] Logo failed to load:", logoSrc, ev?.nativeEvent ?? ev?.type ?? "");
   }
 
   useEffect(() => {

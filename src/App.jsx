@@ -19,14 +19,19 @@ import {
   estimateProjectSizeBytes, getProjectDuration,
 } from "./utils/projectFile";
 
-import { hasCompletedFirstTutorial, markFirstTutorialSeen, resetFirstTutorialFlagForTesting } from "./utils/firstVisitTutorial";
-import { supabaseEnabled } from "./lib/supabase";
+import {
+  shouldAutoPlayTutorialOnBoot,
+  markTutorialSkipped,
+  resetTutorialFlagsForTesting,
+} from "./utils/firstVisitTutorial";
+import { supabase, supabaseEnabled } from "./lib/supabase";
 
 // ── Always-visible core UI (eager) ────────────────────────────────────────
 import MasterVisualizer  from "./components/MasterVisualizer";
 import TransportBar      from "./components/TransportBar";
 import Timeline          from "./components/Timeline";
 import TrackEditor       from "./components/TrackEditor";
+import { MuteMicIcon } from "./components/MuteMicIcons";
 import AvatarMenu        from "./components/AvatarMenu";
 import OfflineBadge      from "./components/OfflineBadge";
 import BlockSelectionHint from "./components/BlockSelectionHint";
@@ -134,11 +139,21 @@ export default function App() {
     else                 setMetronome(false, state.bpm);
   }, [state.metronomActive, state.bpm, state.isPlaying]);
 
-  // ── First-run tutorial (localStorage; see utils/firstVisitTutorial)
+  // ── Auto tutorial unless signed in or permanently skipped (see utils/firstVisitTutorial)
   useEffect(() => {
-    if (hasCompletedFirstTutorial()) return;
-    const t = setTimeout(() => setShowTour(true), 600);
-    return () => clearTimeout(t);
+    let cancelled = false;
+    let tid = null;
+
+    (async () => {
+      const show = await shouldAutoPlayTutorialOnBoot(supabase);
+      if (cancelled || !show) return;
+      tid = window.setTimeout(() => setShowTour(true), 600);
+    })();
+
+    return () => {
+      cancelled = true;
+      if (tid != null) window.clearTimeout(tid);
+    };
   }, []);
 
   useEffect(() => {
@@ -703,15 +718,18 @@ export default function App() {
                   </span>
                   <div className="track-ms-row">
                     <button
-                      className={`ms-btn${track.muted ? " muted" : ""}`}
-                      onClick={(e) => { e.stopPropagation(); actions.updateTrack(track.id, { muted: !track.muted }); }}
-                      title={track.muted ? "Unmute" : "Mute track"}
-                    >M</button>
-                    <button
-                      className={`ms-btn${track.soloed ? " soloed" : ""}`}
-                      onClick={(e) => { e.stopPropagation(); actions.updateTrack(track.id, { soloed: !track.soloed }); }}
-                      title={track.soloed ? "Un-solo" : "Solo track"}
-                    >S</button>
+                      type="button"
+                      className={`ms-btn ms-btn-mic${track.muted ? " muted" : ""}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        actions.updateTrack(track.id, { muted: !track.muted });
+                      }}
+                      title={track.muted ? "Unmute track" : "Mute track"}
+                      aria-label={track.muted ? "Unmute track" : "Mute track"}
+                      aria-pressed={track.muted}
+                    >
+                      <MuteMicIcon muted={track.muted} />
+                    </button>
                   </div>
                 </div>
 
@@ -740,6 +758,7 @@ export default function App() {
           <Timeline
             ref={timelineRef}
             tracks={compiledTracks}
+            themeDecade={prefs.decadeTheme}
             bpm={state.bpm}
             zoom={state.zoom}
             isPlaying={state.isPlaying}
@@ -820,7 +839,7 @@ export default function App() {
               setShowTour(true);
             }}
             onResetFirstTutorialFlag={() => {
-              resetFirstTutorialFlagForTesting();
+              resetTutorialFlagsForTesting();
               setShowSettings(false);
               setShowTour(true);
             }}
@@ -883,8 +902,11 @@ export default function App() {
 
       <Suspense fallback={null}>
         {showPresets && (
-          <div className="preset-drawer-overlay" onClick={() => setShowPresets(false)}>
-            <div className="preset-drawer" onClick={(e) => e.stopPropagation()}>
+          <div
+            className={`preset-drawer-overlay decade-${prefs.decadeTheme}`}
+            onClick={() => setShowPresets(false)}
+          >
+            <div className={`preset-drawer decade-${prefs.decadeTheme}`} onClick={(e) => e.stopPropagation()}>
               <div className="drawer-header">
                 <span className="drawer-title">Presets</span>
                 <button className="drawer-close" onClick={() => setShowPresets(false)} title="Close">×</button>
@@ -917,8 +939,8 @@ export default function App() {
             open
             touchUi={touchUi}
             onOpenAuth={() => { setShowAuth(true); }}
-            onClose={() => {
-              markFirstTutorialSeen();
+            onFinish={() => {
+              markTutorialSkipped();
               setShowTour(false);
               setPrefs({ showTutorial: false });
             }}

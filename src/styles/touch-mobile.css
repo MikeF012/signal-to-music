@@ -6,14 +6,18 @@
 
 .touch-device .daw-shell .timeline-area,
 .touch-device .daw-shell .timeline-root,
-.touch-device .daw-shell .lanes-scroll,
 .touch-device .daw-shell .signal-panel,
-.touch-device .daw-shell .transport-bar {
-  touch-action: manipulation;
+.touch-device .daw-shell .sidebar-tracks,
+.touch-device .daw-shell .track-sidebar {
+  touch-action: pan-x pan-y pinch-zoom;
 }
 
 .touch-device .daw-shell .lanes-scroll {
-  overscroll-behavior: contain;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+.touch-device .daw-shell .transport-bar {
+  touch-action: manipulation;
 }
 
 .touch-device .daw-shell .hw-btn:not(:disabled):active,

@@ -110,7 +110,6 @@ export default function TrackEditor({
       waveType: w,
       suppressNativeDrag: false,
     };
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* noop */ }
   }
 
   function onWavePointerMove(e, w) {
@@ -144,13 +143,11 @@ export default function TrackEditor({
       previewTrack,
       waveTypeLabel: w === "custom" ? "CUSTOM" : w.toUpperCase(),
     });
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
   }
 
   function onWavePointerEnd(e) {
     const arm = chipArmRef.current;
     if (arm && arm.pointerId === e.pointerId) chipArmRef.current = null;
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
   }
 
   return (

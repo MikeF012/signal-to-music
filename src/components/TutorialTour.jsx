@@ -44,7 +44,7 @@ const STEP_BLUEPRINT = [
     id: "sidebar",
     selector: '[data-tour="sidebar"]',
     title: "Lanes",
-    body: "+ Track adds stacks. Muting, solo, and trims live here.",
+    body: "+ Track adds stacks. Mute and level live here.",
     place: "below",
     widePlace: "right",
   },
@@ -70,7 +70,7 @@ const ACCOUNT_STEP_BLUEPRINT = {
   id: "account",
   selector: '[data-tour="transport"]',
   title: "Save in the cloud",
-  body: "Create an account to keep sessions backed up remotely. Projects still export as JSON anytime.",
+  body: "Create an account to keep sessions backed up. You can still export projects as JSON anytime.",
   place: "below",
 };
 
@@ -100,7 +100,7 @@ function useNarrowPortraitStack() {
 
 export default function TutorialTour({
   open,
-  onClose,
+  onFinish,
   touchUi,
   onOpenAuth,
 }) {
@@ -165,19 +165,32 @@ export default function TutorialTour({
   }, [open, step, STEPS]);
 
   const next = useCallback(() => {
-    if (step >= STEPS.length - 1) onClose?.();
+    if (step >= STEPS.length - 1) onFinish?.();
     else setStep((s) => Math.min(STEPS.length - 1, s + 1));
-  }, [STEPS.length, step, onClose]);
+  }, [STEPS.length, step, onFinish]);
 
   const prev = useCallback(() => {
     setStep((s) => Math.max(0, s - 1));
   }, []);
 
+  const handleSkip = useCallback(() => {
+    if (accountIndex < 0) {
+      onFinish?.();
+      return;
+    }
+    if (step < accountIndex) setStep(accountIndex);
+    else onFinish?.();
+  }, [accountIndex, step, onFinish]);
+
   useEffect(() => {
     if (!open) return;
     function onKey(e) {
-      if (e.key === "Escape") onClose?.();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        handleSkip();
+      }
       else if (e.key === "ArrowRight" || e.key === " ") {
+        if (STEPS[step]?.id === "account") return;
         e.preventDefault();
         next();
       }
@@ -185,15 +198,10 @@ export default function TutorialTour({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, next, prev, onClose]);
+  }, [open, next, prev, STEPS, step, handleSkip]);
 
-  function handleSkip() {
-    if (accountIndex < 0) {
-      onClose?.();
-      return;
-    }
-    if (step < accountIndex) setStep(accountIndex);
-    else onClose?.();
+  function exitFromAccount() {
+    onFinish?.();
   }
 
   if (!open) return null;
@@ -279,12 +287,12 @@ export default function TutorialTour({
                 className="hw-btn hw-btn-sm active"
                 onClick={() => {
                   onOpenAuth?.();
-                  onClose?.();
+                  onFinish?.();
                 }}
               >
-                Create account
+                Sign up
               </button>
-              <button type="button" className="hw-btn hw-btn-sm" onClick={() => onClose?.()}>
+              <button type="button" className="hw-btn hw-btn-sm" onClick={exitFromAccount}>
                 Skip
               </button>
             </>

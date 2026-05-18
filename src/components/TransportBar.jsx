@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import AppearancePicker from "./AppearancePicker";
 import {
   TransportLoop,
@@ -56,8 +56,27 @@ export default function TransportBar({
   currentDecade,
   onDecadeChange,
 }) {
+  const rootRef = useRef(null);
   const [bpmVal, setBpmVal] = useState(String(bpm));
   const [projVal, setProjVal] = useState(projectName ?? "untitled");
+
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const apply = () => {
+      const h = el.getBoundingClientRect().height;
+      root.style.setProperty("--transport-bar-height", `${Math.round(h * 100) / 100}px`);
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    window.addEventListener("resize", apply);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", apply);
+    };
+  }, []);
 
   const prevBpm = useRef(bpm);
   const prevProj = useRef(projectName);
@@ -87,7 +106,7 @@ export default function TransportBar({
   }
 
   return (
-    <div className="transport-bar" data-tour="transport">
+    <div className="transport-bar" ref={rootRef} data-tour="transport">
       <div className="transport-btn-group">
         <button
           className="hw-btn hw-btn-icon"

@@ -46,6 +46,8 @@
   --ruler-h:    32px;
   --sidebar-w:  256px;
   --transport-h: 58px;
+  /** Measured live from `.transport-bar` (fallback matches min-height chrome). */
+  --transport-bar-height: 58px;
   --vis-h:      120px;
   --signal-h:   248px;
 
@@ -67,17 +69,14 @@
   :root {
     --vis-h: clamp(138px, 16vh, 166px);
     --transport-h: clamp(66px, 8vh, 77px);
+    --transport-bar-height: clamp(66px, 8vh, 77px);
     --signal-h: clamp(174px, 21vh, 214px);
     --ruler-h: 32px;
     --sidebar-w: clamp(258px, 22vw, 282px);
 
     /** Sum of stacked chrome above the track stack — drives lane height budget */
     --desk-shell-chrome: calc(var(--vis-h) + var(--transport-h) + var(--signal-h) + 16px);
-    --track-h: clamp(
-      40px,
-      calc((100dvh - var(--desk-shell-chrome) - var(--ruler-h)) / 10),
-      54px
-    );
+
     --formula-kb-gap: 5px;
     --formula-kb-cell-h: 34px;
     --formula-kb-macro-h: 42px;
@@ -310,6 +309,19 @@ body {
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+/* ── WEBSITE: keep transport mixer above stray lane paint when themes overlap ── */
+@media (min-width: 769px) {
+  .transport-bar {
+    position: relative;
+    z-index: 60;
+  }
+
+  .daw-main.daw-tracks-area {
+    position: relative;
+    z-index: 10;
+  }
 }
 
 /* Primary controls grow/shrink; end cluster stays visible at the end of the row */
@@ -843,6 +855,11 @@ body {
   box-shadow: inset 0 1px 3px rgba(0,0,0,.4);
 }
 
+.formula-input::placeholder {
+  color: var(--text-muted);
+  opacity: .62;
+}
+
 .formula-input:focus {
   outline: none;
   border-color: var(--mint);
@@ -1284,6 +1301,8 @@ body {
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: #2e1a22 transparent;
+  touch-action: pan-y pinch-zoom;
+  -webkit-overflow-scrolling: touch;
 }
 
 .sidebar-tracks::-webkit-scrollbar { width: 4px; }
@@ -1338,6 +1357,9 @@ body {
 .track-ms-row { display: flex; gap: 3px; margin-left: auto; }
 
 .ms-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--border);
   background: var(--bg-btn);
   color: var(--text-muted);
@@ -1351,6 +1373,17 @@ body {
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
   transition: border-color 100ms, color 100ms;
+  padding: 0;
+}
+
+.ms-btn svg {
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.ms-btn-mic {
+  min-width: 22px;
+  min-height: 18px;
 }
 
 .ms-btn:hover  { color: var(--text-cream); border-color: var(--border-hi); }
@@ -1440,7 +1473,8 @@ body {
 
 .lanes-scroll {
   flex: 1;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-gutter: stable;
   scrollbar-color: #2e1a22 transparent;
@@ -1728,6 +1762,62 @@ body {
 
 .block-touch-popover-btn:disabled {
   opacity: 0.35;
+}
+
+.block-touch-popover.decade-80s {
+  background: #141210;
+  border: 1px solid #2e2c26;
+  border-radius: 0;
+  box-shadow: 3px 3px 0 rgba(0,0,0,.95), 0 0 14px rgba(200,168,120,.08);
+}
+.block-touch-popover.decade-80s .block-touch-popover-btn {
+  font-family: 'Orbitron', monospace;
+  font-size: .58rem;
+  letter-spacing: .08em;
+  color: #8a7a6a;
+}
+.block-touch-popover.decade-80s .block-touch-popover-btn:hover:not(:disabled) {
+  background: rgba(200,168,120,.07);
+  color: #c8a878;
+}
+.block-touch-popover.decade-80s .block-touch-popover-btn.danger:hover:not(:disabled) {
+  background: rgba(220,40,0,.1);
+  color: #dd2800;
+}
+
+.block-touch-popover.decade-90s-2000s {
+  background: linear-gradient(180deg, #1a2e54 0%, #111e3e 100%);
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.06);
+}
+.block-touch-popover.decade-90s-2000s .block-touch-popover-btn {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  font-size: .68rem;
+  color: #7aa8d8;
+}
+.block-touch-popover.decade-90s-2000s .block-touch-popover-btn:hover:not(:disabled) {
+  background: rgba(170,255,0,.1);
+  color: #aaff00;
+}
+
+.block-touch-popover.decade-2010s {
+  background: #282828;
+  border: 1px solid #3a3a3a;
+  border-radius: 2px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.8);
+}
+.block-touch-popover.decade-2010s .block-touch-popover-btn {
+  font-family: 'Inter', Arial, sans-serif;
+  font-weight: 500;
+  font-size: .7rem;
+  color: #b0b0b0;
+  border-radius: 0;
+}
+.block-touch-popover.decade-2010s .block-touch-popover-btn:hover:not(:disabled) {
+  background: #333;
+  color: #f0f0f0;
 }
 
 
@@ -5615,6 +5705,7 @@ body {
   :root {
     --vis-h:       52px;
     --transport-h: 35px;
+    --transport-bar-height: 35px;
     --track-h:     50px;
     --ruler-h:     32px;
     --signal-h:    auto;
@@ -5716,10 +5807,19 @@ body {
     flex-direction: column;
   }
 
-  .daw.daw-shell > .daw-main.daw-tracks-area { order: 1; }
-  .daw.daw-shell > .transport-bar { order: 2; }
-  .daw.daw-shell > .signal-panel-shell { order: 3; }
-  .daw.daw-shell > .visualizer-wrap { order: 4; }
+  .daw.daw-shell > .visualizer-wrap {
+    order: 1;
+    position: relative;
+    z-index: 100;
+  }
+  .daw.daw-shell > .transport-bar { order: 2; position: relative; z-index: 50; }
+  .daw.daw-shell > .signal-panel-shell { order: 3; position: relative; z-index: 20; }
+  .daw.daw-shell > .daw-main.daw-tracks-area {
+    order: 4;
+    position: relative;
+    z-index: 10;
+    flex: 1 1 auto;
+  }
 
   .daw-main {
     flex: 1 1 auto;
@@ -5735,6 +5835,7 @@ body {
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y pinch-zoom;
     border-right: none;
     border-bottom: 1px solid var(--border);
   }
